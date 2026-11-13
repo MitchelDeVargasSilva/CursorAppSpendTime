@@ -107,4 +107,4 @@ O programa instala um gancho global de mouse e substitui o cursor do sistema enq
 
 ## Licença
 
-Defina a licença do projeto antes de publicar (por exemplo, MIT).
+Distribuído sob a licença MIT
