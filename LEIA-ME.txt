@@ -1,0 +1,79 @@
+WHIP CURSOR v6
+==============
+
+ARMAS (8)
+---------
+* Chicote ................ lance por cima do ombro e estalo com fogo na ponta
+* Chicote de corrente .... elos de aco com peso de espinhos e rastro de
+                           faiscas. Ao balancar faz o "whoosh" do chicote;
+                           ao bater, som de metal contra metal
+* Espada ................. combo de 3 golpes (corte descendente, corte
+                           ascendente e estocada) com arco de corte e faiscas
+* Porrete com pregos ..... pancada pesada de cima e tacada lateral
+* Arco e flecha .......... uma FLECHA DE FOGO por clique. A mira segue a
+                           direcao em que voce moveu o mouse por ultimo:
+                           mova o mouse na direcao do alvo e clique.
+                           As flechas cruzam a tela em arco e, ao chegar na
+                           borda de baixo, cravam e continuam queimando.
+* AK-47 .................. clique = 1 tiro; SEGURE o botao = rajada
+                           (~12 tiros/s) com clarao, cartuchos caindo e
+                           trilhas de bala. A mira segue a direcao em que
+                           voce moveu o mouse por ultimo.
+* Catapulta de fogo azul . clique = a catapulta arma o braco e arremessa uma
+                           BOLA DE FOGO AZUL em arco. Se houver um bug na
+                           linha de tiro, ela mira nele sozinha; senao cai
+                           a ~500 px. Ao cair explode em chamas azuis que
+                           continuam queimando no chao por um tempo.
+* Spray .................. SEGURE o botao e mova o mouse para pintar na
+                           tela. A tinta fica ~5 s e some aos poucos. Cada
+                           apertada troca a cor. Parado, a tinta escorre.
+                           Bugs que ficarem na tinta sao envenenados.
+
+CLIQUE SO PARA A HABILIDADE
+---------------------------
+Com a arma LIGADA, os cliques do mouse (esquerdo e direito) NAO chegam ao
+programa/tela por baixo: servem apenas para usar a habilidade. Vale em
+qualquer tela e em qualquer programa.
+  - Segure SHIFT para clicar normalmente (saida de emergencia; nesse clique
+    a arma nao dispara).
+  - Para usar o icone da bandeja com a arma ligada, segure SHIFT ao clicar
+    nele, ou use os atalhos abaixo. Os menus deste programa funcionam normal.
+Com a arma DESLIGADA, o mouse volta 100% ao normal.
+
+INICIA DESATIVADO
+-----------------
+Ao iniciar com o Windows o programa fica quieto na bandeja, sem desenhar nada,
+sem esconder o cursor e sem bloquear cliques. So liga com o atalho.
+
+ATALHOS GLOBAIS
+---------------
+  Ctrl+Alt+W  liga / desliga
+  Ctrl+Alt+M  troca de arma (se estiver desligado, liga na arma seguinte)
+  Ctrl+Alt+Q  igual ao Ctrl+Alt+M
+  Ctrl+Alt+E  liga / desliga os 5 bugs
+
+BUGS NA TELA
+------------
+  Ctrl+Alt+E  liga: aparecem 5 bugs (besouros verdes) andando pela tela.
+              Aperte de novo para tirar todos (ou depois de matar os 5,
+              para chamar mais 5).
+  Qualquer arma ligada esmaga um bug quando acerta nele: chicote, corrente,
+  espada, porrete, flecha, bala da AK, bola de fogo azul e tinta do spray.
+  Os bugs nao bloqueiam o mouse: voce clica normalmente "atraves" deles.
+
+INSTALACAO
+----------
+1. "1 - Testar.bat"  : compila e roda na hora.
+2. "2 - Instalar servico (inicia com o Windows).bat" : instala em
+   %LOCALAPPDATA%\WhipCursor. NAO precisa de administrador.
+3. "3 - Desinstalar servico.bat" : remove tudo e restaura o cursor.
+4. "4 - Restaurar cursor normal.bat" : emergencia.
+
+BANDEJA (perto do relogio, seta ^; clique duplo = liga/desliga)
+---------------------------------------------------------------
+  Ativar/Desativar, Proxima arma, escolher a arma, Esconder cursor normal,
+  Som, Iniciar com o Windows, Sair. As escolhas ficam salvas.
+
+NOTA: em teclado ABNT2, Ctrl+Alt equivale a AltGr, entao AltGr+W (?) e
+AltGr+Q (/) e AltGr+E ficam ocupados pelos atalhos. As teclas normais de ? e /
+continuam funcionando.
