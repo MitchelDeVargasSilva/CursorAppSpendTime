@@ -1,139 +1,141 @@
 # Whip Cursor
 
-Troque o cursor do Windows por uma arma. O Whip Cursor roda na bandeja do sistema, desenha a arma por cima de qualquer tela e usa o clique do mouse para atacar. Também solta bugs pela tela para você esmagar.
+Troque o cursor do Windows por uma arma. O Whip Cursor roda na bandeja do sistema, desenha a arma por cima de qualquer tela e usa o clique do mouse para atacar. Também solta bugs pela tela para você esmagar, com fases, chefe, modos de jogo, vidas, itens e conquistas.
 
-Feito em um único arquivo C# (`Whip.cs`), sem dependências além do .NET Framework 4 que já vem no Windows.
+Escrito em C# (WinForms), sem dependências além do .NET Framework 4 que já vem no Windows.
 
 ## Armas
 
-| Arma | Como usar |
-|---|---|
-| Chicote | Clique para lançar por cima do ombro e estalar com fogo na ponta. |
-| Chicote de corrente | Elos de aço com peso de espinhos e rastro de faíscas. |
-| Espada | Combo de 3 golpes: corte descendente, corte ascendente e estocada. |
-| Porrete com pregos | Pancada pesada de cima e tacada lateral. Deixa rachaduras na tela que somem aos poucos. |
-| Arco e flecha | Uma flecha de fogo por clique. Elas cruzam a tela em arco e cravam na borda de baixo. |
-| AK-47 | Clique dá 1 tiro. Segure o botão para rajada (cerca de 12 tiros por segundo). Pente de 30 tiros: recarrega sozinha ao acabar ou com a tecla `R`, com contador e barra na tela. |
-| Catapulta de fogo azul | Arma o braço e lança uma bola de fogo azul em arco. Se houver um bug na linha de tiro, ela mira nele sozinha. Recarga lenta, com barra embaixo da catapulta. Ao cair, deixa chamas azuis queimando no chão e uma marca de queimado na tela. |
-| Spray | Segure o botão e mova o mouse para pintar na tela. A tinta some depois de uns 5 segundos. Cada apertada troca a cor. Com o botão solto, chacoalhe o mouse de um lado para o outro para sacudir a lata. |
+| Arma | Como usar | Dano |
+|---|---|---|
+| Chicote | Clique para lançar por cima do ombro e estalar com fogo na ponta. | 2 |
+| Chicote de corrente | Elos de aço com peso de espinhos e rastro de faíscas. | 1 na ponta, 2 na pancada |
+| Espada | Combo de 3 golpes. Cada corte deixa um talho na tela. | 2 |
+| Porrete com pregos | Pancada pesada e tacada lateral. Deixa rachaduras na tela. | 3 |
+| Arco e flecha | Uma flecha de fogo por clique. | 2 |
+| AK-47 | Clique dá 1 tiro, segurar dá rajada. Pente de 30, recarrega sozinha ou com `R`. | 1 |
+| Catapulta de fogo azul | Lança uma bola azul em arco, com recarga lenta. Deixa chamas e queimado. | 4 em área |
+| Spray | Segure e mova para pintar. Chacoalhe o mouse com o botão solto para sacudir a lata. Bugs sobre a tinta morrem aos poucos. | veneno |
+| Lança-chamas | Segure o botão. O combustível dura cerca de 4 s e recarrega ao soltar. Se zerar, superaquece. | 1 por chama |
+| Granada | Clique lança, ela cai, pisca e explode. | 3 em área |
 
-A mira do arco, da AK-47 e da catapulta segue a última direção em que você moveu o mouse (ou o cursor, se você ativar a mira no cursor).
+A mira do arco, da AK-47, da catapulta, do lança-chamas e da granada segue a última direção em que você moveu o mouse, ou o cursor se você ativar a mira no cursor.
 
-## Bugs, fases e pontos
+## O jogo dos bugs
 
-Aperte `Ctrl+Alt+E` para começar. Aparecem bugs andando pela tela e um painel no topo mostra a fase, quantos bugs faltam, os pontos, o tempo, o combo e o recorde. Qualquer arma ligada esmaga um bug quando acerta nele. Os bugs não bloqueiam o mouse: você clica "através" deles.
+Aperte `Ctrl+Alt+E` para começar. Um painel no topo mostra fase, bugs, pontos, tempo, combo, vidas e recorde. Os bugs não bloqueiam o mouse.
 
-Ao matar todos, a fase termina, você ganha um bônus de tempo e a próxima começa sozinha, com mais bugs e mais rápidos.
+| Bug | Comportamento | Pontos |
+|---|---|---|
+| Normal (verde) | Anda sem rumo. | 100 |
+| Corredor (amarelo) | Pequeno e rápido, foge do cursor. A partir da fase 2. | 150 |
+| Tanque (azul) | Grande, aguenta 4 de dano. A partir da fase 3. | 300 |
+| Explosivo (vermelho) | Explode ao morrer e leva os vizinhos. A partir da fase 4. | 200 |
+| Chefe (roxo, com coroa) | A cada 5 fases. Muita vida e chama bugs pequenos de tempos em tempos. | 2000 |
 
-| Bug | Comportamento |
-|---|---|
-| Normal (verde) | Anda sem rumo. 100 pontos. |
-| Corredor (amarelo) | Pequeno e rápido, foge do cursor quando a arma está ligada. 150 pontos. Aparece a partir da fase 2. |
-| Tanque (azul) | Grande e lento, aguenta 4 acertos (mostra uma barra de vida). 300 pontos. A partir da fase 3. |
-| Explosivo (vermelho) | Explode ao morrer e leva os bugs vizinhos junto. 200 pontos. A partir da fase 4. |
+**Modos** (escolha em Configurações): fases com chefe, contra o relógio (60 s, cada bug dá +1 s) e infinito. Cada modo tem recorde próprio.
 
-Matar bugs em sequência rápida sobe o combo, que multiplica os pontos (até x5). No spray, o bug morre depois de alguns segundos em cima da tinta. Aperte `Ctrl+Alt+E` de novo para parar o jogo.
+**Vidas:** com a arma ligada, um bug encostando no cursor tira uma vida. Com 0 vidas no menu elas ficam infinitas.
 
-## Atalhos globais
+**Itens:** bugs podem soltar itens. Passe o cursor por cima para pegar: *Munição* (recarrega AK, lança-chamas e granada), *Gelo* (congela os bugs por 5 s) e *Fúria* (pontos em dobro por 8 s).
+
+**Combo:** matar em sequência rápida multiplica os pontos, até x5. Explosões grandes dão uma câmera lenta curta nos bugs.
+
+**Conquistas** (menu da bandeja): primeiro bug, combo x5, fase 5, derrotar um chefe, 100 bugs e fase sem levar mordida.
+
+## Atalhos
 
 | Atalho | Ação |
 |---|---|
 | `Ctrl+Alt+W` | Liga / desliga a arma |
-| `Ctrl+Alt+M` | Troca de arma (se estiver desligado, liga na arma seguinte) |
-| `Ctrl+Alt+Q` | Igual ao `Ctrl+Alt+M` |
-| `Ctrl+Alt+E` | Liga / desliga os 5 bugs |
+| `Ctrl+Alt+M` ou `Ctrl+Alt+Q` | Próxima arma |
+| `Ctrl+Alt+1` a `9` e `0` | Escolhe a arma direto (1 chicote ... 0 granada) |
+| `Ctrl+Alt+E` | Liga / desliga o jogo dos bugs |
+| Roda do mouse | Troca de arma com a arma ligada. `Shift` rola normalmente. |
 
-Em teclado ABNT2, `Ctrl+Alt` equivale ao AltGr. Por isso `AltGr+W`, `AltGr+Q` e `AltGr+E` ficam ocupados pelos atalhos. As teclas normais continuam funcionando.
-
-## Mira no cursor
-
-Por padrão, o arco, a AK-47 e a catapulta ficam no cursor e miram na última direção em que você moveu o mouse. No menu da bandeja, ative **Mira no cursor (arma fixa embaixo)**: a arma fica embaixo da tela, acompanha o cursor na horizontal e mira exatamente para onde o cursor está, que vira uma mira vermelha.
+Todos os atalhos mudam em **Configurações...** no menu da bandeja. Em teclado ABNT2, `Ctrl+Alt` equivale ao AltGr.
 
 ## Configurações
 
-O programa cria o arquivo `WhipCursor.ini` ao lado do executável na primeira vez que roda. Nele você pode mudar:
+O menu da bandeja abre uma janela com: perfil (Casual, Normal, Difícil), modo de jogo, dificuldade, bugs iniciais, vidas, volume, tamanho da AK, lança-chamas e granada, tema de cores (Padrão, Gelo, Tóxico, Neon), idioma (Português ou English), painel, mira no cursor, roda do mouse e todos os atalhos. Também é possível copiar os recordes para a área de transferência.
 
-- os atalhos (combine `Ctrl`, `Alt`, `Shift` e `Win` com uma letra, número ou F1 a F12, por exemplo `Ctrl+Shift+F9`);
-- o volume, de 0 a 100;
-- quantos bugs aparecem na fase 1 (3 a 8);
-- a dificuldade (1 fácil, 2 normal, 3 difícil);
-- o painel de pontos e a mira no cursor.
+O programa guarda isso em `WhipCursor.ini`, ao lado do executável. Você pode editar o arquivo à mão e usar **Recarregar configurações**.
 
-Depois de editar, use **Recarregar configurações** no menu da bandeja. O menu também tem atalhos para abrir o arquivo, mudar o volume e ligar ou desligar o painel e a mira no cursor.
+## Personalização
 
-## Como o mouse se comporta
-
-- O programa inicia desativado: fica quieto na bandeja, sem desenhar nada e sem bloquear cliques.
-- Com a arma ligada, os cliques do mouse servem só para usar a arma e não chegam ao programa que está por baixo.
-- Segure `Shift` para clicar normalmente (saída de emergência). Nesse clique a arma não dispara.
-- Com a arma desligada, o mouse volta 100% ao normal.
+- **Sons:** coloque arquivos `.wav` na pasta `Sons` com o nome do som (`ak.wav`, `boom.wav`, `flame.wav`...). A lista está em `Sons/LEIA-ME.txt`. Sem arquivo, o programa usa os sons gerados por código. Vários sons tocam ao mesmo tempo.
+- **Bug:** coloque um `bug.png` com fundo transparente ao lado do executável para usar sua própria imagem no lugar do bug desenhado.
 
 ## Instalação
 
 ### Usando o executável
 
-1. Baixe o `WhipCursor.exe` (ou o zip da release).
+1. Baixe o zip da release e extraia.
 2. Abra o `WhipCursor.exe`. O ícone aparece na bandeja, perto do relógio.
 3. Use `Ctrl+Alt+W` para ligar.
 
-Se o Windows mostrar o aviso do SmartScreen, clique em "Mais informações" e depois em "Executar assim mesmo". O executável não é assinado.
+O executável não é assinado digitalmente. O SmartScreen pode avisar: clique em "Mais informações" e depois em "Executar assim mesmo". Antivírus podem desconfiar do gancho global de mouse. O código está aberto para você conferir.
 
-### Compilando do código-fonte
+### Compilando
 
-Não precisa instalar nada: o compilador do .NET Framework 4 já vem no Windows.
+Não precisa instalar nada: o compilador do .NET Framework 4 já vem no Windows. Rode o `1 - Testar (recompila).bat`, que compila tudo de `src` e abre o programa. O código usa apenas recursos do C# 5.
 
-```bat
-set CSC=%WINDIR%\Microsoft.NET\Framework64\v4.0.30319\csc.exe
-%CSC% /nologo /codepage:65001 /target:winexe /optimize /out:WhipCursor.exe ^
-  /r:System.Windows.Forms.dll /r:System.Drawing.dll Whip.cs
-```
+Para rodar os testes da lógica do jogo, use o `2 - Rodar testes.bat`.
 
-Ou rode o `1 - Testar.bat`, que compila e abre o programa. O código usa apenas recursos do C# 5.
+### GitHub Actions
+
+O arquivo `.github/workflows/build.yml` roda os testes, compila o executável e guarda o zip como artefato a cada push. Ao criar uma tag que começa com `v` (por exemplo `v8`), ele também publica uma release com o `WhipCursor.zip` e o `WhipCursor.exe`.
 
 ### Iniciar com o Windows
 
-Pelo menu da bandeja, marque "Iniciar com o Windows". Isso grava uma entrada no registro do usuário atual (`HKCU\...\Run`) e não precisa de administrador. Para remover, desmarque a opção.
+Marque "Iniciar com o Windows" no menu da bandeja. Isso grava uma entrada em `HKCU\...\Run`, sem precisar de administrador.
 
-## Menu da bandeja
+## Como o mouse se comporta
 
-Clique com o botão direito no ícone (clique duplo liga / desliga). O menu tem: Ativar/Desativar, Próxima arma, escolher a arma, Bugs na tela, Mira no cursor, Painel de pontos, Volume, Esconder cursor normal, Som, Iniciar com o Windows, Abrir e Recarregar configurações e Sair. As escolhas ficam salvas.
+- O programa inicia desativado e não bloqueia nada.
+- Com a arma ligada, os cliques servem só para usar a arma. A roda do mouse troca de arma.
+- Segure `Shift` para clicar e rolar normalmente.
+- Com a arma desligada, o mouse volta 100% ao normal.
 
-## Se o cursor sumir
-
-Se o programa fechar de forma inesperada e o cursor normal não voltar, rode:
-
-```bat
-WhipCursor.exe /restaurar
-```
+Se o cursor sumir depois de uma falha, rode `WhipCursor.exe /restaurar`.
 
 ## Como funciona
 
 - Janelas em camadas (`UpdateLayeredWindow`), transparentes e atravessáveis pelo mouse, desenhadas com GDI+.
-- Um gancho de mouse de baixo nível (`WH_MOUSE_LL`) captura os cliques enquanto a arma está ligada.
-- O chicote e a corrente são simulados com física de pontos ligados por restrições de distância.
-- Todos os sons são gerados por código na inicialização, então não há arquivos de áudio no projeto.
-- Cada bug é uma janela própria, pequena e transparente, que anda sozinha e é acertada por qualquer arma. O painel de pontos é outra janela transparente.
-- Rachaduras e marcas de queimado são desenhadas numa camada que cobre a tela e somem com o tempo.
+- Um gancho de mouse de baixo nível (`WH_MOUSE_LL`) captura cliques e a roda.
+- Os sons são gerados por código e tocados por um mixer próprio sobre o `waveOut`, com `SoundPlayer` como reserva.
+- Cada bug e cada item é uma janela própria; o painel e as marcas na tela são outras janelas transparentes.
 
 ## Estrutura
 
 ```
-Whip.cs        código-fonte completo
-WhipCursor.exe executável compilado
-WhipCursor.ini configurações (criado na primeira execução)
-LEIA-ME.txt    guia rápido em texto
-*.bat          testar, instalar serviço, desinstalar, restaurar cursor
+src/
+  Logic.cs        regras do jogo sem Windows Forms (testável)
+  Tests.cs        testes da lógica
+  Game.cs         fases, chefe, modos, vidas, itens, conquistas
+  Controls.cs     janela de configurações, roda, atalhos, temas, idioma
+  Config.cs       WhipCursor.ini e registro
+  Audio.cs        mixer e leitura de .wav
+  Sounds.cs       sons gerados por código
+  Weapon.*.cs     uma arma por arquivo (Extra: lança-chamas e granada)
+  Render.cs, Aim.cs, Decals.cs, Input.cs   desenho, mira, marcas e mouse
+  Bug.cs, Item.cs, Hud.cs                  janelas do jogo
+Sons/             sons e bug.png personalizados (opcional)
+.github/workflows/build.yml
 ```
+
+## Limitações conhecidas
+
+- O executável não é assinado e não há placar online; os recordes ficam no registro do Windows do seu usuário.
+- A escala de tamanho vale para AK-47, lança-chamas e granada; as outras armas têm tamanho fixo.
+- O tema de cores muda chamas, tiros, explosão e painel, não todas as armas.
+- Com vários monitores o programa usa a DPI do sistema (`SetProcessDPIAware`); telas com escalas diferentes podem desalinhar a mira.
 
 ## Requisitos
 
 - Windows com .NET Framework 4.x (já incluso no Windows 10 e 11)
 - Não precisa de permissão de administrador
 
-## Aviso
-
-O programa instala um gancho global de mouse e substitui o cursor do sistema enquanto a arma está ligada. Antivírus podem desconfiar disso. O código-fonte está aberto justamente para você conferir o que ele faz.
-
 ## Licença
 
-Distribuído sob a licença MIT
+Defina a licença do projeto antes de publicar (por exemplo, MIT) e adicione um arquivo `LICENSE`.

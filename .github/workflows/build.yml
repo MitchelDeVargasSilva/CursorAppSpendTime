@@ -1,0 +1,52 @@
+name: build
+
+on:
+  push:
+    branches: [ main, master ]
+    tags: [ 'v*' ]
+  pull_request:
+
+jobs:
+  build:
+    runs-on: windows-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Testes da lógica do jogo
+        shell: cmd
+        run: |
+          set CSC=%WINDIR%\Microsoft.NET\Framework64\v4.0.30319\csc.exe
+          "%CSC%" /nologo /out:Testes.exe src\Logic.cs src\Tests.cs
+          Testes.exe
+
+      - name: Compilar WhipCursor.exe
+        shell: pwsh
+        run: |
+          $csc = "$env:WINDIR\Microsoft.NET\Framework64\v4.0.30319\csc.exe"
+          $files = Get-ChildItem src\*.cs | Where-Object { $_.Name -ne 'Tests.cs' } | ForEach-Object { $_.FullName }
+          & $csc /nologo /codepage:65001 /target:winexe /optimize /out:WhipCursor.exe /r:System.Windows.Forms.dll /r:System.Drawing.dll $files
+          if ($LASTEXITCODE -ne 0) { exit 1 }
+
+      - name: Montar o zip
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Path pacote | Out-Null
+          Copy-Item WhipCursor.exe, README.md, LEIA-ME.txt pacote\
+          Copy-Item src pacote\src -Recurse
+          Copy-Item Sons pacote\Sons -Recurse -ErrorAction SilentlyContinue
+          Compress-Archive -Path pacote\* -DestinationPath WhipCursor.zip
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: WhipCursor
+          path: WhipCursor.zip
+
+      - name: Publicar release (quando a tag começa com v)
+        if: startsWith(github.ref, 'refs/tags/v')
+        uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            WhipCursor.zip
+            WhipCursor.exe

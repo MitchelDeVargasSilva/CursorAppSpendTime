@@ -1,0 +1,16 @@
+SONS PERSONALIZADOS
+===================
+Coloque aqui arquivos .wav (8 ou 16 bits, mono ou estereo, qualquer taxa)
+com estes nomes para trocar o som gerado pelo programa:
+
+crack  whoosh  thud  slash  clang  clank  shoot  stick  ak
+cat    boom    hiss  squash rattle reload beep   flame
+
+Exemplo: Sons\ak.wav substitui o tiro da AK-47.
+O volume do programa tambem vale para os seus arquivos.
+Reinicie o programa (ou use "Recarregar configuracoes") para carregar.
+
+BUG PERSONALIZADO
+=================
+Coloque um bug.png (fundo transparente, de preferencia 96x96) ao lado do
+WhipCursor.exe para usar sua imagem no lugar do bug desenhado.

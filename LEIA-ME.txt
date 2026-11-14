@@ -1,25 +1,27 @@
-WHIP CURSOR v7
+WHIP CURSOR v8
 ==============
 Abra WhipCursor.exe. Fica na bandeja (perto do relogio).
 
-Atalhos (podem ser mudados no WhipCursor.ini)
-  Ctrl+Alt+W  liga / desliga
-  Ctrl+Alt+M  troca de arma (8 armas)
-  Ctrl+Alt+E  liga / desliga o jogo dos bugs (fases e pontos)
+Atalhos (mudam em "Configuracoes..." no menu da bandeja ou no WhipCursor.ini)
+  Ctrl+Alt+W       liga / desliga
+  Ctrl+Alt+M / Q   proxima arma (10 armas)
+  Ctrl+Alt+1..9,0  escolhe a arma direto (1 chicote ... 0 granada)
+  Ctrl+Alt+E       liga / desliga o jogo dos bugs
+  Roda do mouse    troca de arma com a arma ligada (Shift rola normal)
 
-Armas: chicote, corrente, espada, porrete (rachaduras), arco,
-AK-47 (segure = rajada; pente de 30; R recarrega),
-catapulta de fogo azul (recarga lenta), spray (segure e mova para pintar;
-chacoalhe o mouse com o botao solto para sacudir a lata).
+Armas: chicote, corrente, espada, porrete, arco, AK-47 (R recarrega),
+catapulta de fogo azul, spray, lanca-chamas (segure; esquenta),
+granada (clique; explode apos cair).
 
-Bugs: normal, corredor (foge), tanque (aguenta golpes), explosivo.
-Fases mais dificeis, pontos e combo no painel do topo.
+Jogo: modos Fases (chefe a cada 5), Contra o relogio e Infinito, cada um
+com recorde proprio. Bugs: normal, corredor, tanque, explosivo e chefe.
+Bug encostando no cursor tira uma vida (0 vidas no menu = infinitas).
+Bugs soltam itens (municao, gelo, pontos em dobro): passe o cursor por cima.
+6 conquistas no menu da bandeja.
 
-Menu da bandeja: Mira no cursor, Painel de pontos, Volume,
-Abrir / Recarregar configuracoes.
-
+Extras: pasta Sons (troque sons por .wav), bug.png (seu proprio bug).
 Segure SHIFT para clicar normalmente com a arma ligada.
 Emergencia: rode "WhipCursor.exe /restaurar" para restaurar o cursor.
 
 Se o Windows avisar (SmartScreen): Mais informacoes > Executar assim mesmo.
-Se o .exe nao abrir: rode "1 - Testar (recompila).bat" (compila o Whip.cs).
+Se o .exe nao abrir: rode "1 - Testar (recompila).bat".
