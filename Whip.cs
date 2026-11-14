@@ -4,6 +4,7 @@ using System.Diagnostics;
 using System.Drawing;
 using System.Drawing.Drawing2D;
 using System.Drawing.Imaging;
+using System.Drawing.Text;
 using System.IO;
 using System.Media;
 using System.Runtime.InteropServices;
@@ -28,6 +29,7 @@ public class Arrow { public float x, y, vx, vy, ux, uy; public int age, stuck; p
 public class Bullet { public float x, y, px, py, vx, vy; public int age; }
 public class Ball { public float sx, sy, tx, ty, z0, peak; public int age, dur; }
 public class Burn { public float x, y; public int life; }
+public class Decal { public float x, y, scale; public int kind, life, max; public float[] pts; }
 public class Dot { public float x, y, vx, vy, r; public int life, max, col, kind; }
 
 public enum WeaponMode { Whip = 0, Mace = 1, Sword = 2, Chain = 3, Bow = 4, Ak = 5, Catapult = 6, Spray = 7 }
@@ -110,10 +112,10 @@ public class Whip : Form
     Timer timer;
     Stopwatch sw = new Stopwatch();
     NotifyIcon tray;
-    ToolStripMenuItem itToggle, itWhip, itMace, itSword, itChain, itBow, itAk, itCat, itSpray, itBugs, itHide, itSnd, itAuto;
+    ToolStripMenuItem itToggle, itWhip, itMace, itSword, itChain, itBow, itAk, itCat, itSpray, itBugs, itHide, itSnd, itAuto, itCfg, itReloadCfg;
     SoundPlayer crackPlayer, whooshPlayer, thudPlayer, slashPlayer, clangPlayer;
     SoundPlayer clankPlayer, shootPlayer, stickPlayer;
-    SoundPlayer akPlayer, catPlayer, boomPlayer, hissPlayer, squashPlayer;
+    SoundPlayer akPlayer, catPlayer, boomPlayer, hissPlayer, squashPlayer, rattlePlayer, reloadPlayer, beepPlayer;
 
     static bool bootLaunch = false;     // iniciado pelo Windows (/boot)
 
@@ -166,43 +168,16 @@ public class Whip : Form
         pen.EndCap   = LineCap.Round;
         pen.LineJoin = LineJoin.Round;
 
-        crackPlayer      = new SoundPlayer(new MemoryStream(MakeCrackWav()));
-        whooshPlayer     = new SoundPlayer(new MemoryStream(MakeWhooshWav()));
-        thudPlayer       = new SoundPlayer(new MemoryStream(MakeThudWav()));
-        slashPlayer      = new SoundPlayer(new MemoryStream(MakeSlashWav()));
-        clangPlayer      = new SoundPlayer(new MemoryStream(MakeClangWav()));
-        clankPlayer      = new SoundPlayer(new MemoryStream(MakeClankWav()));
-        shootPlayer      = new SoundPlayer(new MemoryStream(MakeShootWav()));
-        stickPlayer      = new SoundPlayer(new MemoryStream(MakeStickWav()));
-        akPlayer         = new SoundPlayer(new MemoryStream(MakeAkWav()));
-        catPlayer        = new SoundPlayer(new MemoryStream(MakeCatapultWav()));
-        boomPlayer       = new SoundPlayer(new MemoryStream(MakeBoomWav()));
-        hissPlayer       = new SoundPlayer(new MemoryStream(MakeHissWav()));
-        squashPlayer     = new SoundPlayer(new MemoryStream(MakeSquashWav()));
-        try
-        {
-            crackPlayer.Load(); whooshPlayer.Load(); thudPlayer.Load();
-            slashPlayer.Load(); clangPlayer.Load();
-            clankPlayer.Load(); shootPlayer.Load(); stickPlayer.Load();
-            akPlayer.Load(); catPlayer.Load(); boomPlayer.Load(); hissPlayer.Load(); squashPlayer.Load();
-        }
-        catch { }
+        LoadConfig();
+        BuildSounds();
 
         LoadSettings();
         BuildTray();
         // NÃO esconde o cursor aqui: o programa nasce desativado.
         AppDomain.CurrentDomain.ProcessExit += delegate { RemoveMouseHook(); RestoreCursor(); };
 
-        bool ok1 = RegisterHotKey(Handle, HOTKEY_ID,     MOD_CONTROL | MOD_ALT, VK_W);
-        RegisterHotKey(Handle, HOTKEY_ID + 1, MOD_CONTROL | MOD_ALT, VK_M);
-        RegisterHotKey(Handle, HOTKEY_ID + 2, MOD_CONTROL | MOD_ALT, VK_Q);
-        RegisterHotKey(Handle, HOTKEY_ID + 3, MOD_CONTROL | MOD_ALT, VK_E);
-
         UpdateTray();
-        if (!ok1)
-            tray.ShowBalloonTip(5000, "Whip Cursor", "O atalho Ctrl+Alt+W já está em uso por outro programa. Use o menu da bandeja.", ToolTipIcon.Warning);
-        else if (!bootLaunch)
-            tray.ShowBalloonTip(4000, "Whip Cursor", "Pronto! Ctrl+Alt+W liga/desliga. Ctrl+Alt+M troca de arma. Ctrl+Alt+E liga/desliga os bugs.", ToolTipIcon.Info);
+        RegisterHotkeys(true);
 
         timer = new Timer();
         timer.Interval = 8;
@@ -253,7 +228,7 @@ public class Whip : Form
     {
         sparks.Clear(); rings.Clear(); fires.Clear(); shards.Clear();
         trails.Clear(); tipHist.Clear(); arrows.Clear(); bowF = -1;
-        bullets.Clear(); balls.Clear(); burns.Clear(); dots.Clear();
+        bullets.Clear(); balls.Clear(); burns.Clear(); dots.Clear(); decals.Clear();
         catF = -1; akCd = 0; akShotReq = false; akKick = 0f; akFlash = 0; spWasHeld = false;
         StopHiss();
         throwF = -1; cracked = false;
@@ -300,8 +275,9 @@ public class Whip : Form
     {
         if (tray == null) return;
         tray.Text = enabled ? "Whip Cursor - Ativo: " + ModeName(mode)
-                            : "Whip Cursor - Desativado (Ctrl+Alt+W)";
-        if (itToggle != null) itToggle.Text = enabled ? "Desativar  [Ctrl+Alt+W]" : "Ativar  [Ctrl+Alt+W]";
+                            : "Whip Cursor - Desativado (" + kToggleS + ")";
+        if (itToggle != null) itToggle.Text = (enabled ? "Desativar  [" : "Ativar  [") + kToggleS + "]";
+        if (itCycle  != null) itCycle.Text  = "Próxima arma  [" + kCycleS + "]";
         if (itWhip  != null) itWhip.Checked  = (mode == WeaponMode.Whip);
         if (itChain != null) itChain.Checked = (mode == WeaponMode.Chain);
         if (itSword != null) itSword.Checked = (mode == WeaponMode.Sword);
@@ -310,7 +286,7 @@ public class Whip : Form
         if (itAk    != null) itAk.Checked    = (mode == WeaponMode.Ak);
         if (itCat   != null) itCat.Checked   = (mode == WeaponMode.Catapult);
         if (itSpray != null) itSpray.Checked = (mode == WeaponMode.Spray);
-        if (itBugs  != null) itBugs.Checked  = (bugs.Count > 0);
+        if (itBugs  != null) { itBugs.Checked = (phase > 0 || bugs.Count > 0); itBugs.Text = "Bugs na tela  [" + kBugsS + "]"; }
     }
 
     // ---------- Registro ----------
@@ -351,6 +327,10 @@ public class Whip : Form
                 if (v != null) hideCursor = Convert.ToInt32(v) != 0;
                 v = k.GetValue("Sound");
                 if (v != null) soundOn = Convert.ToInt32(v) != 0;
+                v = k.GetValue("Best");
+                if (v != null) bestScore = Convert.ToInt32(v);
+                v = k.GetValue("Kills");
+                if (v != null) totalKills = Convert.ToInt32(v);
             }
         }
         catch { }
@@ -365,6 +345,8 @@ public class Whip : Form
                 k.SetValue("Mode", (int)mode);
                 k.SetValue("Hide", hideCursor ? 1 : 0);
                 k.SetValue("Sound", soundOn ? 1 : 0);
+                k.SetValue("Best", bestScore);
+                k.SetValue("Kills", totalKills);
             }
         }
         catch { }
@@ -397,7 +379,7 @@ public class Whip : Form
         itToggle = new ToolStripMenuItem("Ativar  [Ctrl+Alt+W]");
         itToggle.Click += delegate { SetEnabled(!enabled); };
 
-        ToolStripMenuItem itCycle = new ToolStripMenuItem("Próxima arma  [Ctrl+Alt+M]");
+        itCycle = new ToolStripMenuItem("Próxima arma");
         itCycle.Click += delegate { CycleWeapon(); };
 
         itWhip  = new ToolStripMenuItem("Chicote");
@@ -416,7 +398,7 @@ public class Whip : Form
         itCat.Click   += delegate { SelectWeapon(WeaponMode.Catapult); };
         itSpray = new ToolStripMenuItem("Spray");
         itSpray.Click += delegate { SelectWeapon(WeaponMode.Spray); };
-        itBugs = new ToolStripMenuItem("Bugs na tela  [Ctrl+Alt+E]");
+        itBugs = new ToolStripMenuItem("Bugs na tela");
         itBugs.Click  += delegate { ToggleBugs(); };
 
         itHide = new ToolStripMenuItem("Esconder cursor normal");
@@ -444,7 +426,7 @@ public class Whip : Form
         itAuto.CheckedChanged += delegate { SetAutoStart(itAuto.Checked); };
 
         ToolStripMenuItem itExit = new ToolStripMenuItem("Sair");
-        itExit.Click += delegate { ClearBugs(); RestoreCursor(); tray.Visible = false; Application.Exit(); };
+        itExit.Click += delegate { StopGame(); RestoreCursor(); tray.Visible = false; Application.Exit(); };
 
         menu.Items.Add(itToggle);
         menu.Items.Add(itCycle);
@@ -460,9 +442,39 @@ public class Whip : Form
         menu.Items.Add(new ToolStripSeparator());
         menu.Items.Add(itBugs);
         menu.Items.Add(new ToolStripSeparator());
+        itAim = new ToolStripMenuItem("Mira no cursor (arma fixa embaixo)");
+        itAim.CheckOnClick = true; itAim.Checked = aimCursor;
+        itAim.CheckedChanged += delegate { aimCursor = itAim.Checked; SaveConfig(); started = false; };
+        itHud = new ToolStripMenuItem("Painel de pontos");
+        itHud.CheckOnClick = true; itHud.Checked = cfgHud;
+        itHud.CheckedChanged += delegate { cfgHud = itHud.Checked; SaveConfig(); UpdateHud(); };
+        itVol = new ToolStripMenuItem("Volume");
+        foreach (int vv in new int[] { 0, 25, 50, 75, 100 })
+        {
+            int v2 = vv;
+            ToolStripMenuItem sv = new ToolStripMenuItem(v2 + "%");
+            sv.Click += delegate { cfgVolume = v2; Vol = v2 / 100.0; BuildSounds(); SaveConfig(); MarkVolume(); };
+            itVol.DropDownItems.Add(sv);
+        }
+        MarkVolume();
+        itCfg = new ToolStripMenuItem("Abrir configurações (WhipCursor.ini)");
+        itCfg.Click += delegate
+        {
+            SaveConfig();
+            try { Process.Start("notepad.exe", "\"" + cfgPath + "\""); } catch { }
+        };
+        itReloadCfg = new ToolStripMenuItem("Recarregar configurações");
+        itReloadCfg.Click += delegate { ReloadConfig(); };
+
+        menu.Items.Add(itAim);
+        menu.Items.Add(itHud);
+        menu.Items.Add(itVol);
         menu.Items.Add(itHide);
         menu.Items.Add(itSnd);
         menu.Items.Add(itAuto);
+        menu.Items.Add(new ToolStripSeparator());
+        menu.Items.Add(itCfg);
+        menu.Items.Add(itReloadCfg);
         menu.Items.Add(new ToolStripSeparator());
         menu.Items.Add(itExit);
 
@@ -1052,6 +1064,7 @@ public class Whip : Form
 
         rings.Add(new Ring { x = x, y = y, age = 0 });
         HitBugsSeg(x - 24f, y, x + 24f, y, 40f);
+        AddCrackDecal(x, y, 1f);
 
         // lascas de madeira
         int shardCount = 16 + rnd.Next(10);
@@ -1314,6 +1327,7 @@ public class Whip : Form
     void DoChainSlam(float x, float y)
     {
         HitBugsSeg(x - 20f, y, x + 20f, y, 34f);
+        AddCrackDecal(x, y, 0.55f);
         rings.Add(new Ring { x = x, y = y, age = 0 });
         for (int i = 0; i < 34; i++)
         {
@@ -1374,6 +1388,7 @@ public class Whip : Form
     void InitBow()
     {
         EnsureBowDib();
+        wxInit = false; UpdateWeaponPos();
         int fc = PickFacing();
         bowAim = (fc == 1) ? Deg(-8f) : Deg(188f);
         bowPull = 0f; bowFromPull = 0f; bowF = -1;
@@ -1389,10 +1404,12 @@ public class Whip : Form
 
     void StepBow()
     {
-        // a mira segue a direção do movimento do mouse
+        // a mira segue a direção do movimento do mouse (ou o cursor, no modo mira no cursor)
+        UpdateWeaponPos();
         float mvx = mx - bowPrevMx, mvy = my - bowPrevMy;
         bowPrevMx = mx; bowPrevMy = my;
-        if (mvx * mvx + mvy * mvy > 9f)
+        if (aimCursor) bowAim = (float)Math.Atan2(my - wy, mx - wx);
+        else if (mvx * mvx + mvy * mvy > 9f)
         {
             float target = (float)Math.Atan2(mvy, mvx);
             float diff = target - bowAim;
@@ -1422,7 +1439,7 @@ public class Whip : Form
             {
                 float ca = (float)Math.Cos(bowAim), sa = (float)Math.Sin(bowAim);
                 float hn = 40f - bowPull;
-                EmitArrowFire(mx + ca * hn, my + sa * hn, 0f, 0f, 1);
+                EmitArrowFire(wx + ca * hn, wy + sa * hn, 0f, 0f, 1);
             }
         }
 
@@ -1436,8 +1453,8 @@ public class Whip : Form
         float cf = -12f - bowPull + 26f;           // centro da flecha encaixada
         Arrow ar = new Arrow();
         ar.ux = (float)Math.Cos(ang); ar.uy = (float)Math.Sin(ang);
-        ar.x = mx + (float)Math.Cos(bowAim) * cf;
-        ar.y = my + (float)Math.Sin(bowAim) * cf;
+        ar.x = wx + (float)Math.Cos(bowAim) * cf;
+        ar.y = wy + (float)Math.Sin(bowAim) * cf;
         ar.vx = ar.ux * 25f; ar.vy = ar.uy * 25f;
         arrows.Add(ar);
         while (arrows.Count > 16) arrows.RemoveAt(0);
@@ -1520,6 +1537,7 @@ public class Whip : Form
     // flecha cravada na borda da tela: explosão de fogo e brasas
     void DoArrowStick(float x, float y)
     {
+        AddScorchDecal(x, y, false);
         rings.Add(new Ring { x = x, y = y, age = 0 });
         for (int i = 0; i < 14; i++)
         {
@@ -1570,7 +1588,11 @@ public class Whip : Form
         foreach (Ball ba in balls)         Grow(ref minX, ref maxX, ref minY, ref maxY, BallX(ba), BallY(ba), 70f);
         foreach (Burn bn in burns)         Grow(ref minX, ref maxX, ref minY, ref maxY, bn.x, bn.y, 50f);
         foreach (Dot dt in dots)           Grow(ref minX, ref maxX, ref minY, ref maxY, dt.x, dt.y, dt.r + 4f);
-        if (mode != WeaponMode.Bow) { Grow(ref minX, ref maxX, ref minY, ref maxY, mx, my, 150f); }
+        if (!UsesBigLayer()) Grow(ref minX, ref maxX, ref minY, ref maxY, mx, my, 280f);
+        else if (mode != WeaponMode.Bow) Grow(ref minX, ref maxX, ref minY, ref maxY, mx, my, 150f);
+        if (mode == WeaponMode.Bow || mode == WeaponMode.Ak || mode == WeaponMode.Catapult) Grow(ref minX, ref maxX, ref minY, ref maxY, wx, wy, 170f);
+        foreach (Shard shd in shards) Grow(ref minX, ref maxX, ref minY, ref maxY, shd.x, shd.y, 20f);
+        foreach (Decal dcl in decals) Grow(ref minX, ref maxX, ref minY, ref maxY, dcl.x, dcl.y, 75f);
 
         int left = (int)Math.Floor(minX), top = (int)Math.Floor(minY);
         int bw = (int)Math.Ceiling(maxX) - left, bh = (int)Math.Ceiling(maxY) - top;
@@ -1601,6 +1623,8 @@ public class Whip : Form
 
     void DrawBowScene(float ox, float oy)
     {
+        DrawDecals(ox, oy);
+        if (!UsesBigLayer()) { DrawLegacyScene(ox, oy); return; }
         if (mode == WeaponMode.Ak)       { DrawAkScene(ox, oy); return; }
         if (mode == WeaponMode.Catapult) { DrawCatScene(ox, oy); return; }
         if (mode == WeaponMode.Spray)    { DrawSprayScene(ox, oy); return; }
@@ -1612,6 +1636,7 @@ public class Whip : Form
             DrawArrow(tx, ty, ar.ux, ar.uy, 52f, spd);
         }
         DrawBowBody(ox, oy);
+        if (aimCursor) DrawHotspot(ox, oy);
         DrawEffects(ox, oy);
     }
 
@@ -1686,7 +1711,7 @@ public class Whip : Form
     {
         float ca = (float)Math.Cos(bowAim), sa = (float)Math.Sin(bowAim);
         float px = -sa, py = ca;
-        float gx = mx - ox, gy = my - oy;            // empunhadura = cursor
+        float gx = wx - ox, gy = wy - oy;            // empunhadura = cursor (ou arma fixa)
         float pull = bowPull;
         float tipF = -0.22f * pull;
         float R = 44f - pull * 0.12f;
@@ -1874,6 +1899,11 @@ public class Whip : Form
             fp.life--;
             if (fp.life <= 0) fires.RemoveAt(f);
         }
+        for (int dc = decals.Count - 1; dc >= 0; dc--)
+        {
+            decals[dc].life--;
+            if (decals[dc].life <= 0) decals.RemoveAt(dc);
+        }
         for (int s = shards.Count - 1; s >= 0; s--)
         {
             Shard sh = shards[s];
@@ -1892,10 +1922,15 @@ public class Whip : Form
     // ===================================================================
     void Render()
     {
-        if (UsesBigLayer()) { RenderBow(); return; }
+        if (UsesBigLayer() || (decals.Count > 0 && gfxBow != null)) { RenderBow(); return; }
         gfx.Clear(Color.Transparent);
         float ox = mx - W / 2f, oy = my - H / 2f;
+        DrawLegacyScene(ox, oy);
+        Present();
+    }
 
+    void DrawLegacyScene(float ox, float oy)
+    {
         if (mode == WeaponMode.Whip)
         {
             // rastro de fogo na ponta quando rápido
@@ -1930,13 +1965,21 @@ public class Whip : Form
         }
 
         DrawEffects(ox, oy);
-        Present();
     }
 
     // ponto de clique real (usado quando a "mão" da arma se desloca do cursor)
     void DrawHotspot(float ox, float oy)
     {
         float x = mx - ox, y = my - oy;
+        if (aimCursor && (mode == WeaponMode.Bow || mode == WeaponMode.Ak || mode == WeaponMode.Catapult))
+        {
+            pen.Color = Color.FromArgb(235, 255, 70, 60); pen.Width = 2f;
+            gfx.DrawEllipse(pen, x - 11f, y - 11f, 22f, 22f);
+            gfx.DrawLine(pen, x - 18f, y, x - 6f, y); gfx.DrawLine(pen, x + 6f, y, x + 18f, y);
+            gfx.DrawLine(pen, x, y - 18f, x, y - 6f); gfx.DrawLine(pen, x, y + 6f, x, y + 18f);
+            gfx.FillEllipse(Brushes.White, x - 1.5f, y - 1.5f, 3f, 3f);
+            return;
+        }
         gfx.FillEllipse(Brushes.White, x - 2.5f, y - 2.5f, 5f, 5f);
         gfx.DrawEllipse(Pens.Black, x - 2.5f, y - 2.5f, 5f, 5f);
     }
@@ -2521,6 +2564,7 @@ public class Whip : Form
     void InitAim()
     {
         EnsureBowDib();
+        wxInit = false; UpdateWeaponPos();
         int fc = PickFacing();
         bowAim = (fc == 1) ? Deg(-8f) : Deg(188f);
         bowPrevMx = mx; bowPrevMy = my;
@@ -2528,8 +2572,10 @@ public class Whip : Form
 
     void TrackAim()
     {
+        UpdateWeaponPos();
         float mvx = mx - bowPrevMx, mvy = my - bowPrevMy;
         bowPrevMx = mx; bowPrevMy = my;
+        if (aimCursor) { bowAim = (float)Math.Atan2(my - wy, mx - wx); return; }
         if (mvx * mvx + mvy * mvy > 9f)
         {
             float target = (float)Math.Atan2(mvy, mvx);
@@ -2570,17 +2616,19 @@ public class Whip : Form
     int HitBugsSeg(float x0, float y0, float x1, float y1, float r)
     {
         if (bugs.Count == 0) return 0;
-        int k = 0;
+        int hits = 0; bool killed = false, tough = false;
         foreach (BugForm b in bugs)
         {
             if (b.State == 0 && b.HitSeg(x0, y0, x1, y1, r))
             {
-                b.Kill(x1 - x0, y1 - y0);
-                k++;
+                hits++;
+                int res = b.Damage(x1 - x0, y1 - y0, 1, false);
+                if (res == 2) { killed = true; OnBugKilled(b); }
+                else if (res == 1) tough = true;
             }
         }
-        if (k > 0) PlaySquash();
-        return k;
+        if (killed) PlaySquash(); else if (tough) PlayClang();
+        return hits;
     }
 
     int HitBugsCircle(float x, float y, float r) { return HitBugsSeg(x, y, x, y, r); }
@@ -2590,21 +2638,59 @@ public class Whip : Form
         if (bugs.Count == 0) return;
         bool killed = false;
         foreach (BugForm b in bugs)
-            if (b.State == 0 && b.PoisonHit(x, y, r, c)) killed = true;
+        {
+            if (b.State == 0 && b.PoisonHit(x, y, r, c)) { killed = true; OnBugKilled(b); }
+        }
         if (killed) PlaySquash();
     }
 
+    // pontos, combo e explosão do bug explosivo
+    void OnBugKilled(BugForm b)
+    {
+        int pts = (b.Kind == 1) ? 150 : (b.Kind == 2 ? 300 : (b.Kind == 3 ? 200 : 100));
+        if (comboT > 0) combo = Math.Min(5, combo + 1); else combo = 1;
+        comboT = 100;
+        pts *= combo;
+        score += pts; phaseKills++; totalKills++;
+        b.Pop = "+" + pts;
+        if (score > bestScore) { bestScore = score; bestDirty = true; }
+        if (b.Boom) { b.Boom = false; BugBoom(b); }
+    }
+
+    void BugBoom(BugForm src)
+    {
+        PlayBoom();
+        foreach (BugForm o in bugs)
+        {
+            if (o == src || o.State != 0) continue;
+            float dx = o.X - src.X, dy = o.Y - src.Y;
+            if (dx * dx + dy * dy <= 95f * 95f)
+            {
+                int res = o.Damage(dx, dy, (o.Kind == 2) ? 2 : 99, true);
+                if (res == 2) OnBugKilled(o);
+            }
+        }
+    }
+
     // ===================================================================
-    //  AK-47
+    //  AK-47  (pente de 30; recarrega sozinha ao acabar ou com a tecla R)
     // ===================================================================
-    int   akCd = 0, akFlash = 0;
-    bool  akShotReq = false;
+    const int AK_MAG = 30, AK_RELOAD = 84;
+    int   akCd = 0, akFlash = 0, akAmmo = AK_MAG, akReload = 0;
+    bool  akShotReq = false, akRPrev = false;
     float akKick = 0f;
 
     void InitAk()
     {
         InitAim();
-        akCd = 0; akFlash = 0; akShotReq = false; akKick = 0f;
+        akCd = 0; akFlash = 0; akShotReq = false; akKick = 0f; akAmmo = AK_MAG; akReload = 0;
+        akRPrev = (GetAsyncKeyState(0x52) & 0x8000) != 0;
+    }
+
+    void StartAkReload()
+    {
+        akReload = AK_RELOAD; akShotReq = false;
+        PlayReload();
     }
 
     void StepAk()
@@ -2615,19 +2701,38 @@ public class Whip : Form
         if (akKick > 0f) akKick = Math.Max(0f, akKick - 0.16f);
 
         bool held = TriggerHeld();
-        if ((held || akShotReq) && akCd <= 0)
+        bool rKey = (GetAsyncKeyState(0x52) & 0x8000) != 0;
+        if (akReload > 0)
         {
+            akReload--;
             akShotReq = false;
-            FireBullet();
-            akCd = 5;                      // ~12 tiros por segundo
+            if (akReload == 0) akAmmo = AK_MAG;
         }
+        else
+        {
+            if (rKey && !akRPrev && akAmmo < AK_MAG) StartAkReload();
+            else if ((held || akShotReq) && akCd <= 0)
+            {
+                akShotReq = false;
+                if (akAmmo > 0)
+                {
+                    FireBullet();
+                    akAmmo--;
+                    akCd = 5;                      // ~12 tiros por segundo
+                    if (akAmmo == 0) StartAkReload();
+                }
+                else StartAkReload();
+            }
+        }
+        akRPrev = rKey;
+
         StepBullets();
         StepParticles();
     }
 
     void FireBullet()
     {
-        SetGunBasis(mx, my, bowAim);
+        SetGunBasis(wx, wy, bowAim);
         PointF m = GP(97f, 10f);
         float ang = bowAim + Rf(-0.03f, 0.03f);
         Bullet b = new Bullet();
@@ -2707,11 +2812,61 @@ public class Whip : Form
         DrawEffects(ox, oy);
     }
 
+    void GPolyOff(Color fill, Color edge, float dx, float dy, params float[] fv)
+    {
+        PointF[] pp = new PointF[fv.Length / 2];
+        for (int i = 0; i < pp.Length; i++)
+        {
+            PointF q = GP(fv[i * 2], fv[i * 2 + 1]);
+            pp[i] = new PointF(q.X + dx, q.Y + dy);
+        }
+        using (SolidBrush br = new SolidBrush(fill)) gfx.FillPolygon(br, pp);
+        pen.Color = edge; pen.Width = 1.2f;
+        gfx.DrawPolygon(pen, pp);
+    }
+
+    Font hudFont;
+    void DrawSmallText(string s, float cx, float cy, Color c)
+    {
+        if (hudFont == null)
+        {
+            try { hudFont = new Font("Segoe UI", 9f, FontStyle.Bold); }
+            catch { hudFont = new Font(FontFamily.GenericSansSerif, 9f, FontStyle.Bold); }
+        }
+        gfx.TextRenderingHint = System.Drawing.Text.TextRenderingHint.AntiAliasGridFit;
+        SizeF ts = gfx.MeasureString(s, hudFont);
+        using (SolidBrush sh = new SolidBrush(Color.FromArgb(200, 0, 0, 0)))
+            gfx.DrawString(s, hudFont, sh, cx - ts.Width / 2f + 1f, cy + 1f);
+        using (SolidBrush br = new SolidBrush(c))
+            gfx.DrawString(s, hudFont, br, cx - ts.Width / 2f, cy);
+    }
+
+    void DrawBar(float x, float y, float w, float h, float frac, Color fill)
+    {
+        using (SolidBrush bg = new SolidBrush(Color.FromArgb(170, 0, 0, 0)))
+            gfx.FillRectangle(bg, x - 1f, y - 1f, w + 2f, h + 2f);
+        using (SolidBrush fg = new SolidBrush(fill))
+            gfx.FillRectangle(fg, x, y, w * Clamp01(frac), h);
+    }
+
     void DrawAkBody(float ox, float oy)
     {
         float kick = akKick * 7f;
         float ca = (float)Math.Cos(bowAim), sa = (float)Math.Sin(bowAim);
-        SetGunBasis(mx - ox - ca * kick, my - oy - sa * kick, bowAim);
+        float sgn = (ca >= 0f) ? 1f : -1f;
+
+        // recarregando: o cano abaixa e o pente sai e entra
+        float p = (akReload > 0) ? (AK_RELOAD - akReload) / (float)AK_RELOAD : -1f;
+        float tilt = (p >= 0f) ? 0.55f * (float)Math.Sin(Math.Min(1f, p / 0.95f) * Math.PI) : 0f;
+        SetGunBasis(wx - ox - ca * kick, wy - oy - sa * kick, bowAim + sgn * tilt);
+
+        float mdx = 0f, mdy = 0f; bool drawMag = true;
+        if (p >= 0f)
+        {
+            if (p < 0.30f) { float q = p / 0.30f; mdy = q * q * 80f; mdx = sgn * q * 10f; }
+            else if (p < 0.50f) drawMag = false;
+            else if (p < 0.80f) { float q = (p - 0.5f) / 0.3f; mdy = (1f - q) * (1f - q) * 60f; }
+        }
 
         Color wood = Color.FromArgb(255, 142, 88, 44), woodD = Color.FromArgb(255, 62, 36, 16);
         Color steel = Color.FromArgb(255, 66, 70, 78), steelD = Color.FromArgb(255, 18, 18, 22);
@@ -2722,9 +2877,14 @@ public class Whip : Form
         GPoly(steel, steelD, -52f, 13f, -55f, 13f, -55f, 0f, -52f, 0f);
         GLine(Color.FromArgb(90, 255, 220, 160), 1.2f, -48f, 11f, -20f, 14f);
         // carregador curvo
-        GPoly(steel, steelD, 10f, 5f, 22f, 5f, 30f, -12f, 35f, -22f, 25f, -25f, 17f, -12f);
-        GLine(Color.FromArgb(120, 20, 20, 24), 1f, 14f, 0f, 24f, -3f);
-        GLine(Color.FromArgb(120, 20, 20, 24), 1f, 19f, -8f, 28f, -11f);
+        if (drawMag)
+        {
+            GPolyOff(steel, steelD, mdx, mdy, 10f, 5f, 22f, 5f, 30f, -12f, 35f, -22f, 25f, -25f, 17f, -12f);
+            pen.Color = Color.FromArgb(120, 20, 20, 24); pen.Width = 1f;
+            PointF r1 = GP(14f, 0f), r2 = GP(24f, -3f), r3 = GP(19f, -8f), r4 = GP(28f, -11f);
+            gfx.DrawLine(pen, r1.X + mdx, r1.Y + mdy, r2.X + mdx, r2.Y + mdy);
+            gfx.DrawLine(pen, r3.X + mdx, r3.Y + mdy, r4.X + mdx, r4.Y + mdy);
+        }
         // punho
         GPoly(poly, steelD, -3f, 6f, 6f, 6f, 3f, -12f, -6f, -10f);
         // caixa da culatra + tampa
@@ -2760,26 +2920,40 @@ public class Whip : Form
             using (SolidBrush br = new SolidBrush(Color.FromArgb(235, 255, 190, 50))) gfx.FillPolygon(br, star);
             using (SolidBrush br2 = new SolidBrush(Color.FromArgb(255, 255, 250, 220)))
                 gfx.FillEllipse(br2, m.X - 6f, m.Y - 6f, 12f, 12f);
-            // jato na direção do cano
             pen.Color = Color.FromArgb(220, 255, 220, 100); pen.Width = 4f;
             gfx.DrawLine(pen, m.X, m.Y, m.X + gca * 30f, m.Y + gsa * 30f);
+        }
+
+        // munição
+        float cx = wx - ox, cy = wy - oy;
+        if (akReload > 0)
+        {
+            DrawSmallText("RECARREGANDO", cx, cy + 36f, Color.FromArgb(255, 255, 214, 80));
+            DrawBar(cx - 32f, cy + 54f, 64f, 5f, p, Color.FromArgb(255, 255, 190, 60));
+        }
+        else
+        {
+            Color ac = (akAmmo <= 5) ? Color.FromArgb(255, 255, 90, 80) : Color.FromArgb(255, 255, 255, 255);
+            DrawSmallText(string.Format("{0}/{1}", akAmmo, AK_MAG), cx, cy + 36f, ac);
+            DrawBar(cx - 32f, cy + 54f, 64f, 4f, akAmmo / (float)AK_MAG, Color.FromArgb(255, 240, 200, 80));
         }
 
         DrawHotspot(ox, oy);
     }
 
     // ===================================================================
-    //  CATAPULTA DE FOGO AZUL
+    //  CATAPULTA DE FOGO AZUL  (recarga lenta, com barra embaixo)
     // ===================================================================
     int   catF = -1, catFacing = 1;
-    float catArm = 138f, catRoll = 0f, catPulse = 0f;
+    float catArm = 138f, catRoll = 0f, catPulse = 0f, catPrevWx = 0f;
     bool  catBall = true;
     const float CAT_PY = -50f, CAT_ARM = 54f, CAT_TAIL = 18f, CAT_REST = 138f;
+    const int CAT_END = 78, CAT_LAUNCH = 17;
 
     void InitCatapult()
     {
         InitAim();
-        catF = -1; catArm = CAT_REST; catRoll = 0f; catBall = true;
+        catF = -1; catArm = CAT_REST; catRoll = 0f; catBall = true; catPrevWx = wx;
         catFacing = PickFacing();
     }
 
@@ -2791,8 +2965,9 @@ public class Whip : Form
 
     void StepCatapult()
     {
-        catRoll += (mx - bowPrevMx) * 0.1f;
         TrackAim();
+        catRoll += (wx - catPrevWx) * 0.1f;
+        catPrevWx = wx;
         float cs = (float)Math.Cos(bowAim);
         if (Math.Abs(cs) > 0.25f) catFacing = (cs >= 0f) ? 1 : -1;
 
@@ -2802,12 +2977,12 @@ public class Whip : Form
             if (f < 10)       catArm = Mix(CAT_REST, 116f, Sm(f / 9f));
             else if (f < 18)  catArm = Mix(116f, 322f, EAcc((f - 10) / 8f));
             else if (f < 23)  catArm = 322f - 12f * Sm((f - 18) / 5f);
-            else              catArm = Mix(310f, CAT_REST, Sm((f - 23) / 28f));
+            else              catArm = Mix(310f, CAT_REST, Sm((f - 23) / (float)(CAT_END - 24 - 1)));
             if (f == 12) PlayCatapult();
-            if (f == 17) { LaunchBall(); catBall = false; }
-            if (f == 46) catBall = true;
+            if (f == CAT_LAUNCH) { LaunchBall(); catBall = false; }
+            if (f == CAT_END - 6) catBall = true;
             catF++;
-            if (catF > 52) { catF = -1; catArm = CAT_REST; catBall = true; }
+            if (catF > CAT_END) { catF = -1; catArm = CAT_REST; catBall = true; }
         }
         else
         {
@@ -2834,34 +3009,43 @@ public class Whip : Form
         CatBucket(catArm, out bcx, out bcy);
         Rectangle vs = SystemInformation.VirtualScreen;
         float ac = (float)Math.Cos(bowAim), asn = (float)Math.Sin(bowAim);
-        float sx = mx + catFacing * bcx, sy = my;
-
-        // mira assistida: pega o bug mais perto da linha de tiro
-        BugForm best = null; float bestDiff = 0.5f;
-        foreach (BugForm bg in bugs)
-        {
-            if (bg.State != 0) continue;
-            float dx = bg.X - sx, dy = bg.Y - sy;
-            float d = (float)Math.Sqrt(dx * dx + dy * dy);
-            if (d < 90f) continue;
-            float cosv = (dx * ac + dy * asn) / d;
-            if (cosv > 1f) cosv = 1f;
-            if (cosv < -1f) cosv = -1f;
-            float diff = (float)Math.Acos(cosv);
-            if (diff < bestDiff) { bestDiff = diff; best = bg; }
-        }
+        float sx = wx + catFacing * bcx, sy = wy;
 
         float tx, ty; int dur;
-        if (best != null)
+        if (aimCursor)
         {
-            float dx = best.X - sx, dy = best.Y - sy;
-            float d = (float)Math.Sqrt(dx * dx + dy * dy);
+            // cai exatamente onde está a mira
+            tx = mx; ty = my;
+            float d = (float)Math.Sqrt((tx - sx) * (tx - sx) + (ty - sy) * (ty - sy));
             dur = (int)Math.Max(32f, Math.Min(64f, 32f + d / 22f));
-            tx = best.X + best.VX * dur; ty = best.Y + best.VY * dur;
         }
         else
         {
-            tx = sx + ac * 520f; ty = sy + asn * 520f; dur = 46;
+            // mira assistida: pega o bug mais perto da linha de tiro
+            BugForm best = null; float bestDiff = 0.5f;
+            foreach (BugForm bg in bugs)
+            {
+                if (bg.State != 0) continue;
+                float dx = bg.X - sx, dy = bg.Y - sy;
+                float d = (float)Math.Sqrt(dx * dx + dy * dy);
+                if (d < 90f) continue;
+                float cosv = (dx * ac + dy * asn) / d;
+                if (cosv > 1f) cosv = 1f;
+                if (cosv < -1f) cosv = -1f;
+                float diff = (float)Math.Acos(cosv);
+                if (diff < bestDiff) { bestDiff = diff; best = bg; }
+            }
+            if (best != null)
+            {
+                float dx = best.X - sx, dy = best.Y - sy;
+                float d = (float)Math.Sqrt(dx * dx + dy * dy);
+                dur = (int)Math.Max(32f, Math.Min(64f, 32f + d / 22f));
+                tx = best.X + best.VX * dur; ty = best.Y + best.VY * dur;
+            }
+            else
+            {
+                tx = sx + ac * 520f; ty = sy + asn * 520f; dur = 46;
+            }
         }
         if (tx < vs.Left + 20) tx = vs.Left + 20;
         if (tx > vs.Right - 20) tx = vs.Right - 20;
@@ -2919,6 +3103,7 @@ public class Whip : Form
     {
         rings.Add(new Ring { x = x, y = y, age = 0 });
         HitBugsCircle(x, y, 92f);
+        AddScorchDecal(x, y, true);
         for (int i = 0; i < 46; i++)
         {
             double ang = rnd.NextDouble() * Math.PI * 2;
@@ -3033,7 +3218,7 @@ public class Whip : Form
 
     void DrawCatBody(float ox, float oy)
     {
-        cbx = mx - ox; cby = my - oy; cbs = catFacing;
+        cbx = wx - ox; cby = wy - oy; cbs = catFacing;
         Color wood = Color.FromArgb(255, 150, 98, 48), woodD = Color.FromArgb(255, 58, 34, 14);
         Color woodM = Color.FromArgb(255, 112, 72, 34);
 
@@ -3042,9 +3227,9 @@ public class Whip : Form
 
         // rodas
         float[] wxs = new float[] { -30f, 22f };
-        foreach (float wx in wxs)
+        foreach (float wxx in wxs)
         {
-            PointF c = CP(wx, -9f);
+            PointF c = CP(wxx, -9f);
             using (SolidBrush wb = new SolidBrush(woodM)) gfx.FillEllipse(wb, c.X - 10f, c.Y - 10f, 20f, 20f);
             pen.Color = woodD; pen.Width = 2.2f;
             gfx.DrawEllipse(pen, c.X - 10f, c.Y - 10f, 20f, 20f);
@@ -3100,10 +3285,22 @@ public class Whip : Form
         }
 
         // eixo
-        PointF ax = CP(0f, CAT_PY);
-        using (SolidBrush axb = new SolidBrush(Color.FromArgb(255, 140, 144, 154))) gfx.FillEllipse(axb, ax.X - 4.5f, ax.Y - 4.5f, 9f, 9f);
+        PointF axp = CP(0f, CAT_PY);
+        using (SolidBrush axb = new SolidBrush(Color.FromArgb(255, 140, 144, 154))) gfx.FillEllipse(axb, axp.X - 4.5f, axp.Y - 4.5f, 9f, 9f);
         pen.Color = Color.FromArgb(255, 30, 30, 36); pen.Width = 1.2f;
-        gfx.DrawEllipse(pen, ax.X - 4.5f, ax.Y - 4.5f, 9f, 9f);
+        gfx.DrawEllipse(pen, axp.X - 4.5f, axp.Y - 4.5f, 9f, 9f);
+
+        // barra de recarga: enche enquanto o braço volta
+        if (catF >= CAT_LAUNCH)
+        {
+            float frac = (catF - CAT_LAUNCH) / (float)(CAT_END - CAT_LAUNCH);
+            DrawBar(cbx - 34f, cby + 10f, 68f, 6f, frac, Color.FromArgb(255, 90, 170, 255));
+            DrawSmallText("CARREGANDO", cbx, cby + 18f, Color.FromArgb(255, 150, 205, 255));
+        }
+        else
+        {
+            DrawBar(cbx - 34f, cby + 10f, 68f, 6f, 1f, Color.FromArgb(255, 90, 220, 120));
+        }
 
         DrawHotspot(ox, oy);
     }
@@ -3117,6 +3314,8 @@ public class Whip : Form
     int   spCol = 0, spStill = 0;
     bool  spWasHeld = false, hissOn = false;
     float spPrevX, spPrevY;
+    float spShake = 0f, spShakePh = 0f, spLastDx = 0f;
+    int   spPrevMx = 0, spRattleCd = 0;
 
     static Color PalColor(int c, int a) { return Color.FromArgb(a, (c >> 16) & 255, (c >> 8) & 255, c & 255); }
 
@@ -3136,6 +3335,7 @@ public class Whip : Form
     {
         InitAim();
         spCol = SpPal.Length - 1; spWasHeld = false; spStill = 0;
+        spShake = 0f; spShakePh = 0f; spLastDx = 0f; spPrevMx = mx; spRattleCd = 0;
     }
 
     void AddDot(float x, float y, float r, int life, int kind)
@@ -3150,6 +3350,23 @@ public class Whip : Form
     void StepSpray()
     {
         bool held = TriggerHeld();
+
+        // chacoalhar a lata: mexer o mouse rápido de um lado para o outro
+        int mdx = mx - spPrevMx; spPrevMx = mx;
+        if (spRattleCd > 0) spRattleCd--;
+        if (!held && Math.Abs(mdx) > 7)
+        {
+            float sg = (mdx > 0) ? 1f : -1f;
+            if (spLastDx != 0f && sg != spLastDx) spShake = Math.Min(6f, spShake + 1f);
+            spLastDx = sg;
+        }
+        else if (Math.Abs(mdx) < 2) spLastDx = 0f;
+        if (spShake > 0f)
+        {
+            spShake = Math.Max(0f, spShake - 0.05f);
+            spShakePh += 1.1f;
+            if (!held && spShake >= 2f && spRattleCd <= 0) { PlayRattle(); spRattleCd = 16; }
+        }
         if (held && !spWasHeld)
         {
             spCol = (spCol + 1) % SpPal.Length;       // cada apertada troca a cor
@@ -3179,7 +3396,7 @@ public class Whip : Form
             {
                 Dot d = new Dot();
                 d.x = mx; d.y = my; d.r = Rf(5f, 10f);
-                d.vx = -0.5f * Rf(0.5f, 3.5f) + Rf(-1f, 1f); d.vy = 0.866f * Rf(0.5f, 3.5f) + Rf(-1f, 1f);
+                d.vx = -Rf(1f, 4f); d.vy = Rf(-1.2f, 1.2f);
                 d.life = d.max = 12; d.col = SpPal[spCol]; d.kind = 1;
                 dots.Add(d);
             }
@@ -3239,33 +3456,52 @@ public class Whip : Form
     void DrawSprayCan(float ox, float oy)
     {
         float gx = mx - ox, gy = my - oy;
-        if (spWasHeld) { gx += Rf(-1.2f, 1.2f); gy += Rf(-1.2f, 1.2f); }
-        const float ax = 0.5f, ay = -0.866f, qx = 0.866f, qy = 0.5f;
+        float tiltDeg = spWasHeld ? 20f : 12f;
+        // chacoalhando: a lata balança de verdade
+        float sh = Clamp01(spShake / 3f);
+        if (sh > 0f && !spWasHeld)
+        {
+            tiltDeg += 14f * sh * (float)Math.Sin(spShakePh);
+            gx += 4f * sh * (float)Math.Sin(spShakePh * 1.7f);
+            gy += 2f * sh * (float)Math.Cos(spShakePh * 2.3f);
+        }
+        if (spWasHeld) { gx += Rf(-0.8f, 0.8f); gy += Rf(-0.8f, 0.8f); }
+
+        float th = Deg(tiltDeg);
+        float ax = (float)Math.Sin(th), ay = (float)Math.Cos(th);      // eixo: do bico para o fundo (para baixo)
+        float qx = ay, qy = -ax;                                       // para a direita da lata
+        float nx = gx + 10f, ny = gy + 1f;                             // centro do bico
         Color paint = PalColor(SpPal[spCol < 0 ? 0 : spCol], 255);
         Color edge = Color.FromArgb(255, 24, 26, 32);
 
-        // corpo
-        FillPts(Color.FromArgb(255, 198, 204, 214), edge,
-            SP(gx, gy, ax, ay, qx, qy, 18f, -11f), SP(gx, gy, ax, ay, qx, qy, 66f, -11f),
-            SP(gx, gy, ax, ay, qx, qy, 66f, 11f),  SP(gx, gy, ax, ay, qx, qy, 18f, 11f));
+        // corpo de alumínio
+        FillPts(Color.FromArgb(255, 200, 206, 216), edge,
+            SP(nx, ny, ax, ay, qx, qy, 22f, -11f), SP(nx, ny, ax, ay, qx, qy, 72f, -11f),
+            SP(nx, ny, ax, ay, qx, qy, 72f, 11f),  SP(nx, ny, ax, ay, qx, qy, 22f, 11f));
         // rótulo colorido
         FillPts(paint, edge,
-            SP(gx, gy, ax, ay, qx, qy, 27f, -11f), SP(gx, gy, ax, ay, qx, qy, 55f, -11f),
-            SP(gx, gy, ax, ay, qx, qy, 55f, 11f),  SP(gx, gy, ax, ay, qx, qy, 27f, 11f));
+            SP(nx, ny, ax, ay, qx, qy, 32f, -11f), SP(nx, ny, ax, ay, qx, qy, 62f, -11f),
+            SP(nx, ny, ax, ay, qx, qy, 62f, 11f),  SP(nx, ny, ax, ay, qx, qy, 32f, 11f));
         pen.Color = Color.FromArgb(150, 255, 255, 255); pen.Width = 2f;
-        gfx.DrawLine(pen, SP(gx, gy, ax, ay, qx, qy, 20f, -6.5f), SP(gx, gy, ax, ay, qx, qy, 64f, -6.5f));
-        // ombro, pescoço e botão
-        FillPts(Color.FromArgb(255, 168, 174, 186), edge,
-            SP(gx, gy, ax, ay, qx, qy, 10f, -4.5f), SP(gx, gy, ax, ay, qx, qy, 18f, -11f),
-            SP(gx, gy, ax, ay, qx, qy, 18f, 11f),   SP(gx, gy, ax, ay, qx, qy, 10f, 4.5f));
-        FillPts(Color.FromArgb(255, 40, 42, 48), edge,
-            SP(gx, gy, ax, ay, qx, qy, 4f, -4.5f), SP(gx, gy, ax, ay, qx, qy, 10f, -4.5f),
-            SP(gx, gy, ax, ay, qx, qy, 10f, 4.5f),  SP(gx, gy, ax, ay, qx, qy, 4f, 4.5f));
+        gfx.DrawLine(pen, SP(nx, ny, ax, ay, qx, qy, 24f, -6.5f), SP(nx, ny, ax, ay, qx, qy, 70f, -6.5f));
+        // ombro (afina para cima), pescoço e tampa do bico
+        FillPts(Color.FromArgb(255, 170, 176, 188), edge,
+            SP(nx, ny, ax, ay, qx, qy, 12f, -5f), SP(nx, ny, ax, ay, qx, qy, 22f, -11f),
+            SP(nx, ny, ax, ay, qx, qy, 22f, 11f), SP(nx, ny, ax, ay, qx, qy, 12f, 5f));
+        FillPts(Color.FromArgb(255, 44, 46, 52), edge,
+            SP(nx, ny, ax, ay, qx, qy, 5f, -5f), SP(nx, ny, ax, ay, qx, qy, 12f, -5f),
+            SP(nx, ny, ax, ay, qx, qy, 12f, 5f),  SP(nx, ny, ax, ay, qx, qy, 5f, 5f));
+        // botão/bico, com a saída apontando para o cursor (a tinta sai dali)
         FillPts(paint, edge,
-            SP(gx, gy, ax, ay, qx, qy, 0f, -3f), SP(gx, gy, ax, ay, qx, qy, 4f, -3.5f),
-            SP(gx, gy, ax, ay, qx, qy, 4f, 3.5f), SP(gx, gy, ax, ay, qx, qy, 0f, 3f));
+            SP(nx, ny, ax, ay, qx, qy, -1f, -4f), SP(nx, ny, ax, ay, qx, qy, 5f, -5f),
+            SP(nx, ny, ax, ay, qx, qy, 5f, 5f),   SP(nx, ny, ax, ay, qx, qy, -1f, 4f));
+        pen.Color = edge; pen.Width = 3f;
+        gfx.DrawLine(pen, nx - 2f, ny - 1f, gx + 1f, gy);
+        pen.Color = Color.FromArgb(255, 70, 72, 80); pen.Width = 1.4f;
+        gfx.DrawLine(pen, nx - 2f, ny - 1f, gx + 1f, gy);
+        // aro do fundo
         pen.Color = edge; pen.Width = 2f;
-        gfx.DrawLine(pen, SP(gx, gy, ax, ay, qx, qy, 66f, -11f), SP(gx, gy, ax, ay, qx, qy, 66f, 11f));
+        gfx.DrawLine(pen, SP(nx, ny, ax, ay, qx, qy, 72f, -11f), SP(nx, ny, ax, ay, qx, qy, 72f, 11f));
 
         DrawHotspot(ox, oy);
     }
@@ -3276,29 +3512,69 @@ public class Whip : Form
     }
 
     // ===================================================================
-    //  BUGS NA TELA (Ctrl+Alt+E): 5 bugs, cada um numa janelinha própria
+    //  BUGS NA TELA (Ctrl+Alt+E) + FASES, PONTOS E COMBO
+    //  Cada fase tem mais bugs e mais rápidos. Tipos: normal, corredor
+    //  (foge do cursor), tanque (aguenta golpes) e explosivo (explode).
     // ===================================================================
     List<BugForm> bugs = new List<BugForm>();
     Stopwatch bugSw = new Stopwatch();
     double bugAcc = 0;
+    HudForm hud;
+    int  phase = 0, phaseKills = 0, phaseTotal = 0, phaseFrames = 0, bannerF = 0, endF = 0, bonusPts = 0;
+    int  score = 0, combo = 0, comboT = 0, hudTick = 0;
+    bool phaseCleared = false, bestDirty = false;
+    int  bestScore = 0, totalKills = 0;
 
     void ToggleBugs()
     {
-        if (bugs.Count > 0) ClearBugs(); else SpawnBugs(5);
+        if (phase > 0 || bugs.Count > 0) StopGame(); else StartGame();
         UpdateTray();
     }
 
-    void SpawnBugs(int n)
+    void StartGame()
     {
+        score = 0; combo = 0; comboT = 0; phase = 1;
+        StartPhase();
+    }
+
+    void StopGame()
+    {
+        ClearBugs();
+        phase = 0; phaseCleared = false; combo = 0; comboT = 0;
+        if (hud != null)
+        {
+            try { hud.Close(); hud.Dispose(); } catch { }
+            hud = null;
+        }
+        if (bestDirty) { bestDirty = false; SaveSettings(); }
+    }
+
+    void StartPhase()
+    {
+        int n = Math.Min(10, cfgBugs + (phase - 1));
+        int[] kinds = new int[n];
+        int runners = (phase >= 2) ? Math.Min(3, phase / 2) : 0;
+        int tanks   = (phase >= 3) ? Math.Min(2, (phase - 1) / 2) : 0;
+        int bombers = (phase >= 4) ? Math.Min(2, (phase - 2) / 2) : 0;
+        int idx = 0;
+        for (int i = 0; i < runners && idx < n; i++) kinds[idx++] = 1;
+        for (int i = 0; i < tanks && idx < n; i++)   kinds[idx++] = 2;
+        for (int i = 0; i < bombers && idx < n; i++) kinds[idx++] = 3;
+
+        float diff = (cfgDiff == 1) ? 0.8f : (cfgDiff == 3 ? 1.3f : 1f);
+        float sp = Math.Min(2.2f, 1f + 0.1f * (phase - 1)) * diff;
         Rectangle vs = SystemInformation.VirtualScreen;
         for (int i = 0; i < n; i++)
         {
-            BugForm b = new BugForm(rnd, vs);
+            BugForm b = new BugForm(rnd, vs, kinds[i], sp);
             b.Show();
             b.Render();
             bugs.Add(b);
         }
+        phaseTotal = n; phaseKills = 0; phaseFrames = 0;
+        phaseCleared = false; bannerF = 130; endF = 0; bonusPts = 0;
         bugSw.Restart(); bugAcc = 0;
+        PlayBannerBeep();
     }
 
     void ClearBugs()
@@ -3310,16 +3586,81 @@ public class Whip : Form
         bugs.Clear();
     }
 
+    // passo de 1/60 s da regra do jogo
+    void GameTick()
+    {
+        if (phase == 0) return;
+        if (comboT > 0) { comboT--; if (comboT == 0) combo = 0; }
+        if (bannerF > 0) bannerF--;
+        if (!phaseCleared)
+        {
+            phaseFrames++;
+            if (phaseKills >= phaseTotal)
+            {
+                phaseCleared = true;
+                endF = 170;
+                int sec = phaseFrames / 60;
+                bonusPts = Math.Max(0, 40 - sec) * 10;
+                score += bonusPts;
+                if (score > bestScore) { bestScore = score; bestDirty = true; }
+                if (bestDirty) { bestDirty = false; SaveSettings(); }
+            }
+        }
+        else
+        {
+            endF--;
+            if (endF <= 0) { phase++; StartPhase(); }
+        }
+    }
+
+    static string FmtTime(int frames)
+    {
+        int s = frames / 60;
+        return string.Format("{0:00}:{1:00}", s / 60, s % 60);
+    }
+
+    void UpdateHud()
+    {
+        try
+        {
+            if (!cfgHud || phase == 0)
+            {
+                if (hud != null) { hud.Close(); hud.Dispose(); hud = null; }
+                return;
+            }
+            if (hud == null) { hud = new HudForm(); hud.Show(); }
+            string l1 = string.Format("FASE {0}     BUGS {1}/{2}     PONTOS {3}", phase, Math.Min(phaseKills, phaseTotal), phaseTotal, score);
+            string l2 = string.Format("Tempo {0}     Combo x{1}     Recorde {2}", FmtTime(phaseFrames), Math.Max(1, combo), bestScore);
+            string banner = "", sub = ""; float ba = 0f;
+            if (phaseCleared)
+            {
+                banner = string.Format("FASE {0} CONCLUÍDA!", phase);
+                sub = string.Format("Bônus de tempo +{0}", bonusPts);
+                ba = Math.Min(1f, endF / 25f + 0.0f);
+                if (endF > 140) ba = (170 - endF) / 30f;
+            }
+            else if (bannerF > 0)
+            {
+                banner = string.Format("FASE {0}", phase);
+                sub = string.Format("{0} bugs: mate todos!", phaseTotal);
+                ba = Math.Min(1f, bannerF / 30f);
+            }
+            hud.Draw(l1, l2, banner, sub, ba);
+        }
+        catch { }
+    }
+
     void StepBugsTimed()
     {
-        if (bugs.Count == 0) return;
+        if (bugs.Count == 0 && phase == 0) return;
         bugAcc += bugSw.Elapsed.TotalMilliseconds;
         bugSw.Restart();
         if (bugAcc > 100) bugAcc = 100;
         int steps = 0;
         while (bugAcc >= STEP_MS && steps < 4)
         {
-            foreach (BugForm b in bugs) b.Step();
+            foreach (BugForm b in bugs) b.Step(mx, my, enabled);
+            GameTick();
             bugAcc -= STEP_MS;
             steps++;
         }
@@ -3338,8 +3679,354 @@ public class Whip : Form
                 else b.Render();
             }
             if (removed) UpdateTray();
+            if (phase > 0 && (hud == null || (++hudTick % 3) == 0)) UpdateHud();
         }
     }
+
+    // ===================================================================
+    //  CONFIGURAÇÃO (WhipCursor.ini, ao lado do executável)
+    // ===================================================================
+    string cfgPath = "";
+    string kToggleS = "Ctrl+Alt+W", kCycleS = "Ctrl+Alt+M", kCycle2S = "Ctrl+Alt+Q", kBugsS = "Ctrl+Alt+E";
+    uint   kToggleM = MOD_CONTROL | MOD_ALT, kToggleV = VK_W;
+    uint   kCycleM  = MOD_CONTROL | MOD_ALT, kCycleV  = VK_M;
+    uint   kCycle2M = MOD_CONTROL | MOD_ALT, kCycle2V = VK_Q;
+    uint   kBugsM   = MOD_CONTROL | MOD_ALT, kBugsV   = VK_E;
+    int    cfgVolume = 100, cfgBugs = 5, cfgDiff = 2;
+    bool   cfgHud = true, aimCursor = false;
+    ToolStripMenuItem itCycle, itAim, itHud, itVol;
+
+    static bool ParseHotkey(string s, out uint mod, out uint vk)
+    {
+        mod = 0; vk = 0;
+        if (s == null) return false;
+        string[] parts = s.Split('+');
+        foreach (string p in parts)
+        {
+            string t = p.Trim().ToLowerInvariant();
+            if (t.Length == 0) return false;
+            if (t == "ctrl" || t == "control") mod |= 0x0002;
+            else if (t == "alt") mod |= 0x0001;
+            else if (t == "shift") mod |= 0x0004;
+            else if (t == "win") mod |= 0x0008;
+            else if (t == "space") vk = 0x20;
+            else if (t.Length == 1 && ((t[0] >= 'a' && t[0] <= 'z') || (t[0] >= '0' && t[0] <= '9')))
+                vk = (uint)char.ToUpperInvariant(t[0]);
+            else if (t[0] == 'f' && t.Length <= 3)
+            {
+                int n;
+                if (int.TryParse(t.Substring(1), out n) && n >= 1 && n <= 12) vk = (uint)(0x70 + n - 1);
+                else return false;
+            }
+            else return false;
+        }
+        return vk != 0 && mod != 0;
+    }
+
+    static void SetKey(string v, ref string s, ref uint m, ref uint vk)
+    {
+        uint nm, nv;
+        if (ParseHotkey(v, out nm, out nv)) { s = v; m = nm; vk = nv; }
+    }
+
+    static int ParseInt(string v, int def)
+    {
+        int n;
+        return int.TryParse(v, out n) ? n : def;
+    }
+
+    static int ClampInt(int v, int lo, int hi) { return v < lo ? lo : (v > hi ? hi : v); }
+
+    void LoadConfig()
+    {
+        try { cfgPath = Path.Combine(Application.StartupPath, "WhipCursor.ini"); } catch { cfgPath = ""; }
+        try { if (cfgPath.Length > 0 && !File.Exists(cfgPath)) SaveConfig(); } catch { }
+        try
+        {
+            if (cfgPath.Length == 0 || !File.Exists(cfgPath)) return;
+            foreach (string raw in File.ReadAllLines(cfgPath, System.Text.Encoding.UTF8))
+            {
+                string ln = raw.Trim();
+                if (ln.Length == 0 || ln[0] == ';' || ln[0] == '#' || ln[0] == '[') continue;
+                int eq = ln.IndexOf('=');
+                if (eq <= 0) continue;
+                string k = ln.Substring(0, eq).Trim().ToLowerInvariant();
+                string v = ln.Substring(eq + 1).Trim();
+                if      (k == "ligar")        SetKey(v, ref kToggleS, ref kToggleM, ref kToggleV);
+                else if (k == "trocararma")   SetKey(v, ref kCycleS,  ref kCycleM,  ref kCycleV);
+                else if (k == "trocararma2")  SetKey(v, ref kCycle2S, ref kCycle2M, ref kCycle2V);
+                else if (k == "bugs")         SetKey(v, ref kBugsS,   ref kBugsM,   ref kBugsV);
+                else if (k == "volume")       cfgVolume = ClampInt(ParseInt(v, 100), 0, 100);
+                else if (k == "bugsiniciais") cfgBugs = ClampInt(ParseInt(v, 5), 3, 8);
+                else if (k == "dificuldade")  cfgDiff = ClampInt(ParseInt(v, 2), 1, 3);
+                else if (k == "painel")       cfgHud = ParseInt(v, 1) != 0;
+                else if (k == "miranocursor") aimCursor = ParseInt(v, 0) != 0;
+            }
+        }
+        catch { }
+        Vol = cfgVolume / 100.0;
+    }
+
+    void SaveConfig()
+    {
+        if (cfgPath == null || cfgPath.Length == 0) return;
+        try
+        {
+            string t =
+"; Whip Cursor - configuracoes\r\n" +
+"; Edite e use \"Recarregar configuracoes\" no menu da bandeja (ou reinicie o programa).\r\n" +
+"; Atalhos: combine Ctrl, Alt, Shift e Win com uma letra, numero ou F1-F12. Exemplo: Ctrl+Shift+F9\r\n\r\n" +
+"[Atalhos]\r\n" +
+"Ligar=" + kToggleS + "\r\n" +
+"TrocarArma=" + kCycleS + "\r\n" +
+"TrocarArma2=" + kCycle2S + "\r\n" +
+"Bugs=" + kBugsS + "\r\n\r\n" +
+"[Opcoes]\r\n" +
+"; Volume de 0 a 100\r\n" +
+"Volume=" + cfgVolume + "\r\n" +
+"; Quantidade de bugs na fase 1 (3 a 8)\r\n" +
+"BugsIniciais=" + cfgBugs + "\r\n" +
+"; Dificuldade: 1 facil, 2 normal, 3 dificil\r\n" +
+"Dificuldade=" + cfgDiff + "\r\n" +
+"; Painel de pontos na tela: 1 liga, 0 desliga\r\n" +
+"Painel=" + (cfgHud ? 1 : 0) + "\r\n" +
+"; Mira no cursor: arco, AK-47 e catapulta ficam fixos embaixo da tela e miram onde esta o cursor\r\n" +
+"MiraNoCursor=" + (aimCursor ? 1 : 0) + "\r\n";
+            File.WriteAllText(cfgPath, t, new System.Text.UTF8Encoding(true));
+        }
+        catch { }
+    }
+
+    void RegisterHotkeys(bool first)
+    {
+        for (int i = 0; i < 4; i++) { try { UnregisterHotKey(Handle, HOTKEY_ID + i); } catch { } }
+        string fail = "";
+        if (!RegisterHotKey(Handle, HOTKEY_ID,     kToggleM, kToggleV)) fail += " " + kToggleS;
+        if (!RegisterHotKey(Handle, HOTKEY_ID + 1, kCycleM,  kCycleV))  fail += " " + kCycleS;
+        if (!RegisterHotKey(Handle, HOTKEY_ID + 2, kCycle2M, kCycle2V)) fail += " " + kCycle2S;
+        if (!RegisterHotKey(Handle, HOTKEY_ID + 3, kBugsM,   kBugsV))   fail += " " + kBugsS;
+        if (fail.Length > 0)
+            tray.ShowBalloonTip(5000, "Whip Cursor", "Atalho(s) já em uso por outro programa:" + fail + ". Use o menu da bandeja ou mude no WhipCursor.ini.", ToolTipIcon.Warning);
+        else if (first && !bootLaunch)
+            tray.ShowBalloonTip(4000, "Whip Cursor", "Pronto! " + kToggleS + " liga/desliga. " + kCycleS + " troca de arma. " + kBugsS + " liga/desliga os bugs.", ToolTipIcon.Info);
+    }
+
+    void ReloadConfig()
+    {
+        LoadConfig();
+        BuildSounds();
+        RegisterHotkeys(false);
+        if (itAim != null) itAim.Checked = aimCursor;
+        if (itHud != null) itHud.Checked = cfgHud;
+        MarkVolume();
+        started = false;
+        UpdateTray();
+        UpdateHud();
+    }
+
+    void MarkVolume()
+    {
+        if (itVol == null) return;
+        foreach (ToolStripItem it in itVol.DropDownItems)
+        {
+            ToolStripMenuItem mi = it as ToolStripMenuItem;
+            if (mi != null) mi.Checked = (mi.Text == cfgVolume + "%");
+        }
+    }
+
+    void BuildSounds()
+    {
+        crackPlayer      = new SoundPlayer(new MemoryStream(MakeCrackWav()));
+        whooshPlayer     = new SoundPlayer(new MemoryStream(MakeWhooshWav()));
+        thudPlayer       = new SoundPlayer(new MemoryStream(MakeThudWav()));
+        slashPlayer      = new SoundPlayer(new MemoryStream(MakeSlashWav()));
+        clangPlayer      = new SoundPlayer(new MemoryStream(MakeClangWav()));
+        clankPlayer      = new SoundPlayer(new MemoryStream(MakeClankWav()));
+        shootPlayer      = new SoundPlayer(new MemoryStream(MakeShootWav()));
+        stickPlayer      = new SoundPlayer(new MemoryStream(MakeStickWav()));
+        akPlayer         = new SoundPlayer(new MemoryStream(MakeAkWav()));
+        catPlayer        = new SoundPlayer(new MemoryStream(MakeCatapultWav()));
+        boomPlayer       = new SoundPlayer(new MemoryStream(MakeBoomWav()));
+        hissPlayer       = new SoundPlayer(new MemoryStream(MakeHissWav()));
+        squashPlayer     = new SoundPlayer(new MemoryStream(MakeSquashWav()));
+        rattlePlayer     = new SoundPlayer(new MemoryStream(MakeRattleWav()));
+        reloadPlayer     = new SoundPlayer(new MemoryStream(MakeReloadWav()));
+        beepPlayer       = new SoundPlayer(new MemoryStream(MakeBeepWav()));
+        try
+        {
+            crackPlayer.Load(); whooshPlayer.Load(); thudPlayer.Load();
+            slashPlayer.Load(); clangPlayer.Load();
+            clankPlayer.Load(); shootPlayer.Load(); stickPlayer.Load();
+            akPlayer.Load(); catPlayer.Load(); boomPlayer.Load(); hissPlayer.Load(); squashPlayer.Load(); rattlePlayer.Load();
+            reloadPlayer.Load(); beepPlayer.Load();
+        }
+        catch { }
+    }
+
+    // ===================================================================
+    //  POSIÇÃO DA ARMA / MIRA NO CURSOR
+    //  Normal: a arma fica no cursor e a mira segue o último movimento.
+    //  "Mira no cursor": arco, AK-47 e catapulta ficam fixos embaixo da
+    //  tela (seguindo o cursor na horizontal) e miram para o cursor.
+    // ===================================================================
+    float wx, wy;
+    bool  wxInit = false;
+
+    void UpdateWeaponPos()
+    {
+        if (!aimCursor) { wx = mx; wy = my; wxInit = false; return; }
+        Rectangle b = Screen.FromPoint(new Point(mx, my)).Bounds;
+        float tx = Math.Max(b.Left + 90, Math.Min(b.Right - 90, mx));
+        if (!wxInit) { wx = tx; wxInit = true; }
+        else wx += (tx - wx) * 0.12f;
+        wy = b.Bottom - 70;
+    }
+
+    // ===================================================================
+    //  MARCAS DE DANO NA TELA (rachaduras e queimados que somem aos poucos)
+    // ===================================================================
+    List<Decal> decals = new List<Decal>();
+
+    void AddDecal(Decal d)
+    {
+        EnsureBowDib();
+        if (gfxBow == null) return;
+        decals.Add(d);
+        while (decals.Count > 40) decals.RemoveAt(0);
+    }
+
+    void AddCrackDecal(float x, float y, float sc)
+    {
+        Decal d = new Decal();
+        d.x = x; d.y = y; d.kind = 0; d.scale = sc; d.life = d.max = 420;
+        List<float> seg = new List<float>();
+        int n = 7 + rnd.Next(4);
+        for (int i = 0; i < n; i++)
+        {
+            float ang = i * (float)Math.PI * 2f / n + Rf(-0.3f, 0.3f);
+            float len = Rf(22f, 60f) * sc;
+            int steps = 3 + rnd.Next(2);
+            float px = (float)Math.Cos(ang) * 5f * sc, py = (float)Math.Sin(ang) * 5f * sc;
+            for (int s = 0; s < steps; s++)
+            {
+                ang += Rf(-0.45f, 0.45f);
+                float sl = len / steps;
+                float nx = px + (float)Math.Cos(ang) * sl, ny = py + (float)Math.Sin(ang) * sl;
+                seg.Add(px); seg.Add(py); seg.Add(nx); seg.Add(ny);
+                if (rnd.NextDouble() < 0.35)
+                {
+                    float a2 = ang + Rf(-1.1f, 1.1f), l2 = sl * Rf(0.5f, 1.1f);
+                    seg.Add(nx); seg.Add(ny);
+                    seg.Add(nx + (float)Math.Cos(a2) * l2); seg.Add(ny + (float)Math.Sin(a2) * l2);
+                }
+                px = nx; py = ny;
+            }
+        }
+        d.pts = seg.ToArray();
+        AddDecal(d);
+    }
+
+    void AddScorchDecal(float x, float y, bool blue)
+    {
+        Decal d = new Decal();
+        d.x = x; d.y = y; d.kind = blue ? 1 : 2; d.scale = 1f;
+        d.life = d.max = blue ? 480 : 300;
+        d.pts = new float[0];
+        AddDecal(d);
+    }
+
+    void DrawDecals(float ox, float oy)
+    {
+        foreach (Decal d in decals)
+        {
+            float fade = (d.life < 120) ? d.life / 120f : 1f;
+            float x = d.x - ox, y = d.y - oy;
+            if (d.kind == 0)
+            {
+                float sc = d.scale;
+                using (SolidBrush dent = new SolidBrush(Color.FromArgb(Cl(150 * fade), 24, 20, 16)))
+                    gfx.FillEllipse(dent, x - 6f * sc, y - 5f * sc, 12f * sc, 10f * sc);
+                for (int i = 0; i + 3 < d.pts.Length; i += 4)
+                {
+                    pen.Color = Color.FromArgb(Cl(215 * fade), 30, 24, 18); pen.Width = 2.2f * Math.Max(0.6f, sc);
+                    gfx.DrawLine(pen, x + d.pts[i], y + d.pts[i + 1], x + d.pts[i + 2], y + d.pts[i + 3]);
+                    pen.Color = Color.FromArgb(Cl(90 * fade), 240, 236, 228); pen.Width = 1f;
+                    gfx.DrawLine(pen, x + d.pts[i] + 1f, y + d.pts[i + 1] + 1f, x + d.pts[i + 2] + 1f, y + d.pts[i + 3] + 1f);
+                }
+            }
+            else
+            {
+                bool blue = (d.kind == 1);
+                float R = blue ? 44f : 24f;
+                int age = d.max - d.life;
+                for (int k = 0; k < 4; k++)
+                {
+                    float rr = R * (1f - k * 0.2f);
+                    Color c = blue ? Color.FromArgb(Cl((40 + k * 22) * fade), 8, 12, 30)
+                                   : Color.FromArgb(Cl((40 + k * 22) * fade), 30, 14, 6);
+                    using (SolidBrush sb = new SolidBrush(c))
+                        gfx.FillEllipse(sb, x - rr, y - rr * 0.55f, rr * 2f, rr * 1.1f);
+                }
+                if (age < 160)
+                {
+                    float gl = 1f - age / 160f;
+                    float fl = 0.7f + 0.3f * (float)Math.Sin(age * 0.4);
+                    pen.Color = blue ? Color.FromArgb(Cl(150 * gl * fl * fade), 90, 180, 255)
+                                     : Color.FromArgb(Cl(150 * gl * fl * fade), 255, 140, 40);
+                    pen.Width = 2.5f;
+                    gfx.DrawEllipse(pen, x - R * 0.8f, y - R * 0.45f, R * 1.6f, R * 0.9f);
+                }
+            }
+        }
+    }
+
+    // ---------- Sons novos ----------
+    // pente saindo, caindo, entrando e ferrolho
+    byte[] MakeReloadWav()
+    {
+        int sr = 44100, n = (int)(sr * 1.5);
+        double[] o = new double[n];
+        double[] ev = new double[] { 0.05, 0.30, 0.92, 1.22, 1.32 };
+        double[] fr = new double[] { 1900, 150, 1100, 2400, 1500 };
+        double[] am = new double[] { 0.7, 0.9, 1.0, 0.8, 0.9 };
+        double peak = 0.0001;
+        for (int e = 0; e < ev.Length; e++)
+        {
+            int s0 = (int)(ev[e] * sr);
+            double ph = 0;
+            for (int i = s0; i < n && i < s0 + sr / 4; i++)
+            {
+                double t = (double)(i - s0) / sr;
+                double x = rnd.NextDouble() * 2 - 1;
+                ph += 2 * Math.PI * fr[e] / sr;
+                double env = Math.Exp(-t / (fr[e] < 300 ? 0.05 : 0.012));
+                o[i] += (x * 0.6 + Math.Sin(ph) * 0.7 + Math.Sin(ph * 1.52) * 0.3) * env * am[e];
+            }
+        }
+        for (int i = 0; i < n; i++) if (Math.Abs(o[i]) > peak) peak = Math.Abs(o[i]);
+        for (int i = 0; i < n; i++) o[i] = Math.Tanh(o[i] / peak * 1.4) * 0.9;
+        return ToWav(o, sr);
+    }
+
+    // bipe curto de início de fase
+    byte[] MakeBeepWav()
+    {
+        int sr = 44100, n = (int)(sr * 0.28);
+        double[] o = new double[n];
+        double ph = 0;
+        for (int i = 0; i < n; i++)
+        {
+            double t = (double)i / sr;
+            double f = (t < 0.12) ? 660 : 990;
+            ph += 2 * Math.PI * f / sr;
+            double env = Math.Min(1.0, t / 0.005) * Math.Exp(-(t < 0.12 ? t : t - 0.12) / 0.07);
+            o[i] = Math.Sin(ph) * env * 0.5;
+        }
+        return ToWav(o, sr);
+    }
+
+    void PlayReload()     { if (!soundOn) return; try { reloadPlayer.Play(); } catch { } }
+    void PlayBannerBeep() { if (!soundOn || hissOn) return; try { beepPlayer.Play(); } catch { } }
 
     // ---------- Sons das armas novas ----------
     byte[] MakeAkWav()
@@ -3466,6 +4153,35 @@ public class Whip : Form
         return ToWav(o, sr);
     }
 
+    // bolinha de metal batendo dentro da lata de spray
+    byte[] MakeRattleWav()
+    {
+        int sr = 44100, n = (int)(sr * 0.3);
+        double[] o = new double[n];
+        double peak = 0.0001;
+        int next = 0;
+        double ph1 = 0, ph2 = 0, env = 0, f1 = 3600, f2 = 5200;
+        for (int i = 0; i < n; i++)
+        {
+            double t = (double)i / sr;
+            if (i >= next)
+            {
+                env = 0.5 + rnd.NextDouble() * 0.5;
+                f1 = 2800 + rnd.NextDouble() * 1800; f2 = f1 * 1.46;
+                next = i + (int)(sr * (0.012 + rnd.NextDouble() * 0.028));
+            }
+            env *= 0.9985 - 0.0 * t;
+            env *= 0.9955;
+            ph1 += 2 * Math.PI * f1 / sr; ph2 += 2 * Math.PI * f2 / sr;
+            double x = (rnd.NextDouble() * 2 - 1) * 0.35;
+            o[i] = (Math.Sin(ph1) * 0.7 + Math.Sin(ph2) * 0.4 + x) * env * (1.0 - t / 0.34);
+            if (Math.Abs(o[i]) > peak) peak = Math.Abs(o[i]);
+        }
+        for (int i = 0; i < n; i++) o[i] = Math.Tanh(o[i] / peak * 1.4) * 0.8;
+        return ToWav(o, sr);
+    }
+
+    void PlayRattle()    { if (!soundOn || hissOn) return; try { rattlePlayer.Play(); } catch { } }
     void PlayAk()        { if (!soundOn) return; try { akPlayer.Play(); }     catch { } }
     void PlayCatapult()  { if (!soundOn) return; try { catPlayer.Play(); }    catch { } }
     void PlayBoom()      { if (!soundOn) return; try { boomPlayer.Play(); }   catch { } }
@@ -3487,6 +4203,8 @@ public class Whip : Form
     }
 
     // ---------- Sons ----------
+    static double Vol = 1.0;
+
     static byte[] ToWav(double[] s, int sr)
     {
         MemoryStream ms = new MemoryStream();
@@ -3501,7 +4219,7 @@ public class Whip : Form
         bw.Write(n*2);
         for (int i = 0; i < n; i++)
         {
-            double v = s[i];
+            double v = s[i] * Vol;
             if (v >  1) v =  1;
             if (v < -1) v = -1;
             bw.Write((short)(v * 32767));
@@ -3782,7 +4500,7 @@ public class Whip : Form
         UnregisterHotKey(Handle, HOTKEY_ID + 1);
         UnregisterHotKey(Handle, HOTKEY_ID + 2);
         UnregisterHotKey(Handle, HOTKEY_ID + 3);
-        ClearBugs();
+        StopGame();
         RestoreCursor();
         base.OnFormClosed(e);
     }
@@ -3809,7 +4527,8 @@ public class Whip : Form
 
 // ===================================================================
 //  Um bug na tela: janela própria, transparente e "atravessável" pelo mouse.
-//  Anda sozinho; qualquer arma que o acerte o esmaga.
+//  Tipos: 0 normal, 1 corredor (foge do cursor), 2 tanque (aguenta golpes),
+//  3 explosivo (explode ao morrer e leva os vizinhos junto).
 // ===================================================================
 public class BugForm : Form
 {
@@ -3846,27 +4565,41 @@ public class BugForm : Form
     public float X, Y, VX, VY, Ang, Speed;
     public int State;            // 0 vivo, 1 morrendo, 2 pronto para remover
     public int Poison;           // veneno do spray
+    public int Kind;             // 0 normal, 1 corredor, 2 tanque, 3 explosivo
+    public float BodyScale = 1f;
+    public int Hp = 1, MaxHp = 1;
+    public bool Boom;            // explosivo morreu: o jogo dispara a explosão
+    public string Pop = "";      // pontos que sobem ao morrer
     Color tint = Color.Transparent;
 
     Random rnd;
     Rectangle bounds;
-    int age, dieF, pauseF, turnT;
-    float tgtAng, wantSpeed, legPh;
+    int age, dieF, pauseF, turnT, hitCd, hurt;
+    float tgtAng, wantSpeed, legPh, speedMul;
+    bool fleeing;
     IntPtr memDc, hDib;
     Bitmap bmp;
     Graphics g;
     Pen pen;
     List<Drop> drops = new List<Drop>();
     float[] bx = new float[9], by = new float[9], br = new float[9];
+    static Font popFont;
 
-    public BugForm(Random r, Rectangle vs)
+    public int PoisonLimit { get { return Kind == 2 ? 100 : 40; } }
+
+    public BugForm(Random r, Rectangle vs, int kind, float spMul)
     {
         rnd = r;
+        Kind = kind;
+        BodyScale = (kind == 1) ? 0.8f : (kind == 2 ? 1.55f : (kind == 3 ? 1.1f : 1f));
+        Hp = MaxHp = (kind == 2) ? 4 : 1;
+        speedMul = spMul * ((kind == 1) ? 2.0f : (kind == 2 ? 0.6f : (kind == 3 ? 0.9f : 1f)));
+
         bounds = new Rectangle(vs.Left + 50, vs.Top + 50, Math.Max(100, vs.Width - 100), Math.Max(100, vs.Height - 100));
         X = bounds.Left + (float)rnd.NextDouble() * bounds.Width;
         Y = bounds.Top + (float)rnd.NextDouble() * bounds.Height;
         Ang = tgtAng = (float)(rnd.NextDouble() * Math.PI * 2);
-        wantSpeed = Speed = 1.4f + (float)rnd.NextDouble() * 1.6f;
+        wantSpeed = Speed = (1.4f + (float)rnd.NextDouble() * 1.6f) * speedMul;
         turnT = 20 + rnd.Next(40);
         legPh = (float)(rnd.NextDouble() * 6.0);
 
@@ -3889,8 +4622,14 @@ public class BugForm : Form
         bmp = new Bitmap(S, S, S * 4, PixelFormat.Format32bppPArgb, bits);
         g = Graphics.FromImage(bmp);
         g.SmoothingMode = SmoothingMode.AntiAlias;
+        g.TextRenderingHint = TextRenderingHint.AntiAliasGridFit;
         pen = new Pen(Color.Black);
         pen.StartCap = LineCap.Round; pen.EndCap = LineCap.Round; pen.LineJoin = LineJoin.Round;
+        if (popFont == null)
+        {
+            try { popFont = new Font("Segoe UI", 12f, FontStyle.Bold); }
+            catch { popFont = new Font(FontFamily.GenericSansSerif, 12f, FontStyle.Bold); }
+        }
     }
 
     protected override CreateParams CreateParams
@@ -3921,14 +4660,29 @@ public class BugForm : Form
     }
 
     // ---------- Lógica ----------
-    public void Step()
+    public void Step(int cmx, int cmy, bool flee)
     {
         age++;
+        if (hitCd > 0) hitCd--;
+        if (hurt > 0) hurt--;
         if (State == 1) { StepDeath(); return; }
         if (State != 0) return;
 
         if (Poison > 0 && age % 3 == 0) Poison--;
         float boost = 1f + Poison * 0.045f;          // intoxicado corre mais
+
+        // corredor: foge do cursor quando a arma está ligada
+        fleeing = false;
+        if (Kind == 1 && flee)
+        {
+            float fx = X - cmx, fy = Y - cmy;
+            if (fx * fx + fy * fy < 190f * 190f)
+            {
+                tgtAng = (float)Math.Atan2(fy, fx) + ((float)rnd.NextDouble() - 0.5f) * 0.6f;
+                turnT = 8; pauseF = 0; fleeing = true;
+                boost *= 1.6f;
+            }
+        }
 
         if (pauseF > 0) { pauseF--; Speed *= 0.8f; }
         else
@@ -3938,8 +4692,8 @@ public class BugForm : Form
             {
                 tgtAng = Ang + ((float)rnd.NextDouble() * 2f - 1f) * 1.3f;
                 turnT = 18 + rnd.Next(50);
-                wantSpeed = 1.2f + (float)rnd.NextDouble() * 2.4f;
-                if (rnd.NextDouble() < 0.14) pauseF = 18 + rnd.Next(40);
+                wantSpeed = (1.2f + (float)rnd.NextDouble() * 2.4f) * speedMul;
+                if (Kind != 1 && rnd.NextDouble() < 0.14) pauseF = 18 + rnd.Next(40);
             }
             Speed += (wantSpeed - Speed) * 0.1f;
         }
@@ -3951,17 +4705,18 @@ public class BugForm : Form
             turnT = 25; pauseF = 0;
         }
 
+        float maxTurn = (Kind == 1) ? 0.17f : 0.09f;
         float diff = tgtAng - Ang;
         while (diff > (float)Math.PI)  diff -= 2f * (float)Math.PI;
         while (diff < -(float)Math.PI) diff += 2f * (float)Math.PI;
-        if (diff > 0.09f) diff = 0.09f;
-        if (diff < -0.09f) diff = -0.09f;
+        if (diff > maxTurn) diff = maxTurn;
+        if (diff < -maxTurn) diff = -maxTurn;
         Ang += diff;
 
         VX = (float)Math.Cos(Ang) * Speed * boost;
         VY = (float)Math.Sin(Ang) * Speed * boost;
         X += VX; Y += VY;
-        legPh += 0.10f + Speed * boost * 0.22f;
+        legPh += 0.10f + Speed * boost * 0.22f / Math.Max(0.8f, BodyScale);
     }
 
     public bool HitSeg(float x0, float y0, float x1, float y1, float r)
@@ -3973,46 +4728,61 @@ public class BugForm : Form
         if (t < 0f) t = 0f;
         if (t > 1f) t = 1f;
         float px = x0 + vx * t - X, py = y0 + vy * t - Y;
-        float rr = r + 19f;
+        float rr = r + 19f * BodyScale;
         return px * px + py * py <= rr * rr;
+    }
+
+    // dano: 0 ignorado (recuperando), 1 acertou mas aguentou, 2 morreu
+    public int Damage(float dx, float dy, int dmg, bool force)
+    {
+        if (State != 0) return 0;
+        if (hitCd > 0 && !force) return 0;
+        Hp -= dmg;
+        hitCd = 8; hurt = 6;
+        if (Hp <= 0) { Kill(dx, dy); return 2; }
+        return 1;
     }
 
     // devolve true se o veneno matou
     public bool PoisonHit(float x, float y, float r, Color c)
     {
         float dx = X - x, dy = Y - y;
-        float rr = r + 19f;
+        float rr = r + 19f * BodyScale;
         if (dx * dx + dy * dy > rr * rr) return false;
         Poison += 2;
         tint = c;
-        if (Poison >= 40) { Kill(0f, 0f); return true; }
+        if (Poison >= PoisonLimit) { Kill(0f, 0f); return true; }
         return false;
     }
 
-    public void Kill(float dx, float dy)
+    void Kill(float dx, float dy)
     {
         if (State != 0) return;
         State = 1; dieF = 0;
+        if (Kind == 3) Boom = true;
         float l = (float)Math.Sqrt(dx * dx + dy * dy);
         if (l > 0.01f) { dx /= l; dy /= l; } else { dx = 0f; dy = 0f; }
 
         for (int i = 0; i < bx.Length; i++)
         {
-            bx[i] = (i == 0) ? 0f : (float)(rnd.NextDouble() * 26 - 13);
-            by[i] = (i == 0) ? 0f : (float)(rnd.NextDouble() * 26 - 13);
-            br[i] = (i == 0) ? 15f : 4f + (float)rnd.NextDouble() * 8f;
+            bx[i] = (i == 0) ? 0f : (float)(rnd.NextDouble() * 26 - 13) * BodyScale;
+            by[i] = (i == 0) ? 0f : (float)(rnd.NextDouble() * 26 - 13) * BodyScale;
+            br[i] = ((i == 0) ? 15f : 4f + (float)rnd.NextDouble() * 8f) * BodyScale;
         }
         bool tinted = tint.A > 0 && Poison > 0;
-        for (int i = 0; i < 28; i++)
+        int nd = (Kind == 3) ? 44 : 28;
+        for (int i = 0; i < nd; i++)
         {
             double a = rnd.NextDouble() * Math.PI * 2;
-            double sp = 1.5 + rnd.NextDouble() * 6.5;
+            double sp = 1.5 + rnd.NextDouble() * (Kind == 3 ? 9.0 : 6.5);
             Drop d = new Drop();
             d.x = 0f; d.y = 0f;
             d.vx = (float)(Math.Cos(a) * sp) + dx * 2.5f;
             d.vy = (float)(Math.Sin(a) * sp) + dy * 2.5f;
-            d.r = 1.8f + (float)rnd.NextDouble() * 3.8f;
-            d.c = (tinted && i % 2 == 0) ? tint : Color.FromArgb(70 + rnd.Next(70), 150 + rnd.Next(60), 30 + rnd.Next(40));
+            d.r = (1.8f + (float)rnd.NextDouble() * 3.8f) * (Kind == 2 ? 1.4f : 1f);
+            if (Kind == 3) d.c = Color.FromArgb(255, 200 + rnd.Next(55), 60 + rnd.Next(120), 20);
+            else if (tinted && i % 2 == 0) d.c = tint;
+            else d.c = BodyColor(Kind, 0.6f);
             drops.Add(d);
         }
     }
@@ -4046,21 +4816,44 @@ public class BugForm : Form
 
     static Color Blend(Color a, Color b, float t)
     {
+        if (t < 0f) t = 0f;
+        if (t > 1f) t = 1f;
         return Color.FromArgb(255, (int)(a.R + (b.R - a.R) * t), (int)(a.G + (b.G - a.G) * t), (int)(a.B + (b.B - a.B) * t));
+    }
+
+    static Color BodyColor(int kind, float lighten)
+    {
+        Color c;
+        if (kind == 1)      c = Color.FromArgb(255, 240, 176, 48);
+        else if (kind == 2) c = Color.FromArgb(255, 96, 104, 200);
+        else if (kind == 3) c = Color.FromArgb(255, 176, 38, 38);
+        else                c = Color.FromArgb(255, 96, 192, 60);
+        if (lighten < 1f) c = Blend(c, Color.Black, (1f - lighten) * 0.25f);
+        return c;
     }
 
     void DrawBug()
     {
-        float sc = (age < 16) ? 0.3f + 0.7f * (age / 16f) : 1f;
-        Color body = Color.FromArgb(255, 96, 192, 60);
-        Color stripe = Color.FromArgb(255, 54, 130, 40);
-        Color dark = Color.FromArgb(255, 24, 62, 22);
+        float sc = ((age < 16) ? 0.3f + 0.7f * (age / 16f) : 1f) * BodyScale;
+        Color body = BodyColor(Kind, 1f);
+        Color stripe, dark;
+        if (Kind == 1)      { stripe = Color.FromArgb(255, 206, 112, 22); dark = Color.FromArgb(255, 84, 46, 10); }
+        else if (Kind == 2) { stripe = Color.FromArgb(255, 54, 58, 142);  dark = Color.FromArgb(255, 20, 22, 62); }
+        else if (Kind == 3)
+        {
+            float pulse = 0.5f + 0.5f * (float)Math.Sin(age * 0.35);
+            stripe = Blend(Color.FromArgb(255, 90, 12, 12), Color.FromArgb(255, 255, 210, 50), pulse);
+            dark = Color.FromArgb(255, 52, 8, 8);
+        }
+        else                { stripe = Color.FromArgb(255, 54, 130, 40);  dark = Color.FromArgb(255, 24, 62, 22); }
+
         if (Poison > 0 && tint.A > 0)
         {
-            float k = Math.Min(1f, Poison / 30f) * 0.7f;
+            float k = Math.Min(1f, Poison / (PoisonLimit * 0.75f)) * 0.7f;
             body = Blend(body, tint, k);
             stripe = Blend(stripe, tint, k * 0.6f);
         }
+        if (hurt > 0) { body = Blend(body, Color.White, 0.7f); stripe = Blend(stripe, Color.White, 0.5f); }
 
         g.TranslateTransform(S / 2f, S / 2f);
         g.RotateTransform(Ang * 57.29578f);
@@ -4115,9 +4908,24 @@ public class BugForm : Form
         using (SolidBrush b2 = new SolidBrush(Blend(body, Color.White, 0.08f))) g.FillEllipse(b2, -3f, -7f, 16f, 14f);
         pen.Color = dark; g.DrawEllipse(pen, -3f, -7f, 16f, 14f);
 
+        // tanque: placas de armadura
+        if (Kind == 2)
+        {
+            pen.Color = Color.FromArgb(200, 200, 205, 240); pen.Width = 2.2f;
+            g.DrawArc(pen, -24f, -8f, 22f, 16f, 200f, 140f);
+            g.DrawArc(pen, -2f, -6f, 14f, 12f, 200f, 140f);
+        }
+        // explosivo: pavio brilhante
+        if (Kind == 3)
+        {
+            float pl = 0.5f + 0.5f * (float)Math.Sin(age * 0.35);
+            using (SolidBrush gl = new SolidBrush(Color.FromArgb((int)(60 + 120 * pl), 255, 200, 40)))
+                g.FillEllipse(gl, -18f, -14f, 30f, 28f);
+        }
+
         // cabeça
         using (SolidBrush b3 = new SolidBrush(Blend(body, dark, 0.2f))) g.FillEllipse(b3, 11f, -6f, 12f, 12f);
-        pen.Color = dark; g.DrawEllipse(pen, 11f, -6f, 12f, 12f);
+        pen.Color = dark; pen.Width = 1.6f; g.DrawEllipse(pen, 11f, -6f, 12f, 12f);
         pen.Width = 1.4f;
         g.DrawLine(pen, 22f, -2f, 26f, -3.5f);
         g.DrawLine(pen, 22f, 2f, 26f, 3.5f);
@@ -4126,10 +4934,18 @@ public class BugForm : Form
         for (int sd = -1; sd <= 1; sd += 2)
         {
             g.FillEllipse(Brushes.White, 16.5f, sd * 4.6f - 2.5f, 5f, 5f);
-            g.FillEllipse(Brushes.Black, 18.4f, sd * 4.6f - 1.2f, 2.4f, 2.4f);
+            g.FillEllipse((Kind == 3) ? Brushes.Red : Brushes.Black, 18.4f, sd * 4.6f - 1.2f, 2.4f, 2.4f);
         }
 
         g.ResetTransform();
+
+        // barra de vida do tanque
+        if (Kind == 2 && Hp < MaxHp)
+        {
+            float bw = 40f, bh = 5f, bx0 = S / 2f - bw / 2f, by0 = S / 2f - 46f;
+            using (SolidBrush bb = new SolidBrush(Color.FromArgb(170, 0, 0, 0))) g.FillRectangle(bb, bx0 - 1f, by0 - 1f, bw + 2f, bh + 2f);
+            using (SolidBrush bf2 = new SolidBrush(Color.FromArgb(255, 220, 60, 60))) g.FillRectangle(bf2, bx0, by0, bw * Hp / MaxHp, bh);
+        }
     }
 
     void DrawDeath()
@@ -4141,18 +4957,29 @@ public class BugForm : Form
         // mancha
         int sa = (int)(215 * (1f - u * u));
         if (sa < 0) sa = 0;
-        Color stain = (Poison > 0 && tint.A > 0) ? Blend(Color.FromArgb(255, 80, 150, 40), tint, 0.5f) : Color.FromArgb(255, 80, 150, 40);
+        Color stain = (Poison > 0 && tint.A > 0) ? Blend(BodyColor(Kind, 0.7f), tint, 0.5f) : BodyColor(Kind, 0.7f);
+        if (Kind == 3) stain = Color.FromArgb(255, 40, 20, 14);
         for (int i = 0; i < bx.Length; i++)
         {
             float r = br[i] * (0.6f + 0.4f * grow);
             using (SolidBrush sb = new SolidBrush(Color.FromArgb(sa, stain.R, stain.G, stain.B)))
                 g.FillEllipse(sb, cx + bx[i] - r, cy + by[i] - r, r * 2f, r * 2f);
         }
-        using (SolidBrush sb2 = new SolidBrush(Color.FromArgb((int)(sa * 0.6f), 40, 90, 24)))
-            g.FillEllipse(sb2, cx - 7f, cy - 6f, 14f, 12f);
 
-        // clarão do impacto
-        if (dieF < 9)
+        // clarão do impacto (o explosivo faz uma bola de fogo)
+        if (Kind == 3 && dieF < 16)
+        {
+            float f = dieF / 16f;
+            float rr = 8f + f * 62f;
+            using (SolidBrush fb = new SolidBrush(Color.FromArgb((int)(190 * (1f - f)), 255, 150, 30)))
+                g.FillEllipse(fb, cx - rr, cy - rr, rr * 2f, rr * 2f);
+            using (SolidBrush fb2 = new SolidBrush(Color.FromArgb((int)(230 * (1f - f)), 255, 240, 160)))
+                g.FillEllipse(fb2, cx - rr * 0.55f, cy - rr * 0.55f, rr * 1.1f, rr * 1.1f);
+            pen.Color = Color.FromArgb((int)(220 * (1f - f)), 255, 220, 120);
+            pen.Width = 3f;
+            g.DrawEllipse(pen, cx - rr * 1.1f, cy - rr * 1.1f, rr * 2.2f, rr * 2.2f);
+        }
+        else if (dieF < 9)
         {
             float rr = dieF * 5f;
             pen.Color = Color.FromArgb((int)(220 * (1f - dieF / 9f)), 230, 255, 180);
@@ -4169,5 +4996,179 @@ public class BugForm : Form
             using (SolidBrush db = new SolidBrush(Color.FromArgb(da, d.c.R, d.c.G, d.c.B)))
                 g.FillEllipse(db, cx + d.x - r, cy + d.y - r, r * 2f, r * 2f);
         }
+
+        // pontos subindo
+        if (Pop.Length > 0 && popFont != null)
+        {
+            float py = cy - 16f - dieF * 0.9f;
+            int pa = (dieF < 28) ? 255 : (int)(255 * (1f - (dieF - 28) / 18f));
+            if (pa < 0) pa = 0;
+            SizeF ts = g.MeasureString(Pop, popFont);
+            using (SolidBrush shb = new SolidBrush(Color.FromArgb(pa, 0, 0, 0)))
+                g.DrawString(Pop, popFont, shb, cx - ts.Width / 2f + 1.2f, py + 1.2f);
+            using (SolidBrush tb = new SolidBrush(Color.FromArgb(pa, 255, 232, 90)))
+                g.DrawString(Pop, popFont, tb, cx - ts.Width / 2f, py);
+        }
+    }
+}
+
+// ===================================================================
+//  Painel de pontos (HUD): janela transparente no topo da tela
+// ===================================================================
+public class HudForm : Form
+{
+    const int HW = 520, HH = 210;
+
+    [StructLayout(LayoutKind.Sequential)] struct POINT { public int x, y; }
+    [StructLayout(LayoutKind.Sequential)] struct SIZE  { public int cx, cy; }
+    [StructLayout(LayoutKind.Sequential, Pack = 1)]
+    struct BLENDFUNCTION { public byte BlendOp, BlendFlags, SourceConstantAlpha, AlphaFormat; }
+    [StructLayout(LayoutKind.Sequential)]
+    struct BITMAPINFOHEADER
+    {
+        public uint biSize; public int biWidth; public int biHeight;
+        public ushort biPlanes; public ushort biBitCount; public uint biCompression;
+        public uint biSizeImage; public int biXPelsPerMeter; public int biYPelsPerMeter;
+        public uint biClrUsed; public uint biClrImportant;
+    }
+
+    [DllImport("user32.dll")] static extern IntPtr GetDC(IntPtr h);
+    [DllImport("user32.dll")] static extern int ReleaseDC(IntPtr h, IntPtr dc);
+    [DllImport("user32.dll", SetLastError = true)]
+    static extern bool UpdateLayeredWindow(IntPtr hwnd, IntPtr hdcDst, ref POINT pptDst, ref SIZE psize,
+        IntPtr hdcSrc, ref POINT pptSrc, int crKey, ref BLENDFUNCTION pblend, int dwFlags);
+    [DllImport("gdi32.dll")] static extern IntPtr CreateCompatibleDC(IntPtr dc);
+    [DllImport("gdi32.dll")] static extern IntPtr SelectObject(IntPtr dc, IntPtr o);
+    [DllImport("gdi32.dll")] static extern bool DeleteObject(IntPtr o);
+    [DllImport("gdi32.dll")] static extern bool DeleteDC(IntPtr dc);
+    [DllImport("gdi32.dll")]
+    static extern IntPtr CreateDIBSection(IntPtr hdc, ref BITMAPINFOHEADER pbmi, uint iUsage,
+        out IntPtr ppvBits, IntPtr hSection, uint dwOffset);
+
+    IntPtr memDc, hDib;
+    Bitmap bmp;
+    Graphics g;
+    Font f1, f2, fBig, fSub;
+
+    public HudForm()
+    {
+        FormBorderStyle = FormBorderStyle.None;
+        ShowInTaskbar   = false;
+        TopMost         = true;
+        StartPosition   = FormStartPosition.Manual;
+        Location        = new Point(-32000, -32000);
+        Size            = new Size(HW, HH);
+
+        IntPtr sdc = GetDC(IntPtr.Zero);
+        memDc = CreateCompatibleDC(sdc);
+        BITMAPINFOHEADER bi = new BITMAPINFOHEADER();
+        bi.biSize = 40; bi.biWidth = HW; bi.biHeight = -HH;
+        bi.biPlanes = 1; bi.biBitCount = 32; bi.biCompression = 0;
+        IntPtr bits;
+        hDib = CreateDIBSection(sdc, ref bi, 0, out bits, IntPtr.Zero, 0);
+        ReleaseDC(IntPtr.Zero, sdc);
+        SelectObject(memDc, hDib);
+        bmp = new Bitmap(HW, HH, HW * 4, PixelFormat.Format32bppPArgb, bits);
+        g = Graphics.FromImage(bmp);
+        g.SmoothingMode = SmoothingMode.AntiAlias;
+        g.TextRenderingHint = TextRenderingHint.AntiAliasGridFit;
+        try
+        {
+            f1 = new Font("Segoe UI", 13f, FontStyle.Bold);
+            f2 = new Font("Segoe UI", 10f, FontStyle.Regular);
+            fBig = new Font("Segoe UI", 30f, FontStyle.Bold);
+            fSub = new Font("Segoe UI", 13f, FontStyle.Bold);
+        }
+        catch
+        {
+            f1 = new Font(FontFamily.GenericSansSerif, 13f, FontStyle.Bold);
+            f2 = new Font(FontFamily.GenericSansSerif, 10f, FontStyle.Regular);
+            fBig = new Font(FontFamily.GenericSansSerif, 30f, FontStyle.Bold);
+            fSub = new Font(FontFamily.GenericSansSerif, 13f, FontStyle.Bold);
+        }
+    }
+
+    protected override CreateParams CreateParams
+    {
+        get
+        {
+            CreateParams cp = base.CreateParams;
+            cp.ExStyle |= 0x80000 | 0x20 | 0x80 | 0x8 | 0x08000000;
+            return cp;
+        }
+    }
+
+    protected override bool ShowWithoutActivation { get { return true; } }
+
+    protected override void OnFormClosed(FormClosedEventArgs e)
+    {
+        try
+        {
+            if (g != null) g.Dispose();
+            if (bmp != null) bmp.Dispose();
+            if (hDib != IntPtr.Zero) DeleteObject(hDib);
+            if (memDc != IntPtr.Zero) DeleteDC(memDc);
+            if (f1 != null) f1.Dispose();
+            if (f2 != null) f2.Dispose();
+            if (fBig != null) fBig.Dispose();
+            if (fSub != null) fSub.Dispose();
+        }
+        catch { }
+        g = null; hDib = IntPtr.Zero; memDc = IntPtr.Zero;
+        base.OnFormClosed(e);
+    }
+
+    static GraphicsPath Round(RectangleF r, float rad)
+    {
+        GraphicsPath p = new GraphicsPath();
+        float d = rad * 2f;
+        p.AddArc(r.X, r.Y, d, d, 180, 90);
+        p.AddArc(r.Right - d, r.Y, d, d, 270, 90);
+        p.AddArc(r.Right - d, r.Bottom - d, d, d, 0, 90);
+        p.AddArc(r.X, r.Bottom - d, d, d, 90, 90);
+        p.CloseFigure();
+        return p;
+    }
+
+    public void Draw(string line1, string line2, string banner, string sub, float bannerAlpha)
+    {
+        if (g == null) return;
+        g.Clear(Color.Transparent);
+
+        using (GraphicsPath gp = Round(new RectangleF(30f, 0f, 460f, 62f), 12f))
+        {
+            using (SolidBrush bg = new SolidBrush(Color.FromArgb(165, 10, 12, 18))) g.FillPath(bg, gp);
+            using (Pen bp = new Pen(Color.FromArgb(70, 255, 255, 255), 1.2f)) g.DrawPath(bp, gp);
+        }
+        using (SolidBrush w = new SolidBrush(Color.FromArgb(255, 255, 255, 255))) g.DrawString(line1, f1, w, 46f, 7f);
+        using (SolidBrush gr = new SolidBrush(Color.FromArgb(255, 200, 206, 216))) g.DrawString(line2, f2, gr, 46f, 35f);
+
+        if (banner != null && banner.Length > 0 && bannerAlpha > 0f)
+        {
+            int a = (int)(255 * Math.Min(1f, bannerAlpha));
+            SizeF ts = g.MeasureString(banner, fBig);
+            float bx = (HW - ts.Width) / 2f, by = 86f;
+            using (SolidBrush sh = new SolidBrush(Color.FromArgb(a * 3 / 4, 0, 0, 0)))
+                g.DrawString(banner, fBig, sh, bx + 2f, by + 2f);
+            using (SolidBrush gold = new SolidBrush(Color.FromArgb(a, 255, 214, 70)))
+                g.DrawString(banner, fBig, gold, bx, by);
+            if (sub != null && sub.Length > 0)
+            {
+                SizeF ss = g.MeasureString(sub, fSub);
+                float sx = (HW - ss.Width) / 2f, sy = by + ts.Height - 2f;
+                using (SolidBrush sh2 = new SolidBrush(Color.FromArgb(a * 3 / 4, 0, 0, 0)))
+                    g.DrawString(sub, fSub, sh2, sx + 1.5f, sy + 1.5f);
+                using (SolidBrush wh = new SolidBrush(Color.FromArgb(a, 255, 255, 255)))
+                    g.DrawString(sub, fSub, wh, sx, sy);
+            }
+        }
+
+        Rectangle sb = Screen.PrimaryScreen.Bounds;
+        POINT dst = new POINT(); dst.x = sb.Left + (sb.Width - HW) / 2; dst.y = sb.Top + 8;
+        SIZE size = new SIZE(); size.cx = HW; size.cy = HH;
+        POINT src = new POINT();
+        BLENDFUNCTION bf = new BLENDFUNCTION();
+        bf.BlendOp = 0; bf.BlendFlags = 0; bf.SourceConstantAlpha = 255; bf.AlphaFormat = 1;
+        UpdateLayeredWindow(Handle, IntPtr.Zero, ref dst, ref size, memDc, ref src, 0, ref bf, 2);
     }
 }

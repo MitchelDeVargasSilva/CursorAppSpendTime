@@ -1,0 +1,25 @@
+WHIP CURSOR v7
+==============
+Abra WhipCursor.exe. Fica na bandeja (perto do relogio).
+
+Atalhos (podem ser mudados no WhipCursor.ini)
+  Ctrl+Alt+W  liga / desliga
+  Ctrl+Alt+M  troca de arma (8 armas)
+  Ctrl+Alt+E  liga / desliga o jogo dos bugs (fases e pontos)
+
+Armas: chicote, corrente, espada, porrete (rachaduras), arco,
+AK-47 (segure = rajada; pente de 30; R recarrega),
+catapulta de fogo azul (recarga lenta), spray (segure e mova para pintar;
+chacoalhe o mouse com o botao solto para sacudir a lata).
+
+Bugs: normal, corredor (foge), tanque (aguenta golpes), explosivo.
+Fases mais dificeis, pontos e combo no painel do topo.
+
+Menu da bandeja: Mira no cursor, Painel de pontos, Volume,
+Abrir / Recarregar configuracoes.
+
+Segure SHIFT para clicar normalmente com a arma ligada.
+Emergencia: rode "WhipCursor.exe /restaurar" para restaurar o cursor.
+
+Se o Windows avisar (SmartScreen): Mais informacoes > Executar assim mesmo.
+Se o .exe nao abrir: rode "1 - Testar (recompila).bat" (compila o Whip.cs).
